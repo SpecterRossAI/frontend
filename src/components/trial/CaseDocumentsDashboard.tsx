@@ -17,6 +17,8 @@ import {
 } from "lucide-react";
 import type { UploadedFile } from "@/types/files";
 
+const API_BASE = import.meta.env.VITE_API_URL || "";
+
 interface CaseDocumentsDashboardProps {
   files: UploadedFile[];
   caseId?: string;
@@ -152,6 +154,12 @@ const CaseDocumentsDashboard = ({
   const tree = buildTree(files);
   const totalSize = files.reduce((a, f) => a + f.size, 0);
   const counts = getDocTypeCounts(files);
+  const previewUrl =
+    caseId && selectedFile && (selectedFile.storedName ?? selectedFile.name)
+      ? `${API_BASE || ""}/api/cases/${encodeURIComponent(caseId)}/files/${encodeURIComponent(selectedFile.storedName ?? selectedFile.name)}`
+      : null;
+  const isPdf = selectedFile?.type === "application/pdf";
+  const isImage = selectedFile?.type?.startsWith("image/");
 
   const handleSelect = (f: UploadedFile) => {
     setSelectedFile(f);
@@ -311,10 +319,18 @@ const CaseDocumentsDashboard = ({
                   <X className="w-4 h-4 text-muted-foreground" />
                 </button>
               </div>
-              <div className="rounded-xl bg-muted/50 border border-border p-12 flex items-center justify-center">
-                <p className="text-sm text-muted-foreground text-center">
-                  Document preview would be rendered here in the full implementation.
-                </p>
+              <div className="rounded-xl bg-muted/50 border border-border overflow-hidden flex items-center justify-center min-h-[50vh]">
+                {previewUrl && isPdf && (
+                  <iframe src={previewUrl} title={selectedFile.name} className="w-full h-full min-h-[50vh]" />
+                )}
+                {previewUrl && isImage && (
+                  <img src={previewUrl} alt={selectedFile.name} className="max-w-full max-h-[70vh] object-contain" />
+                )}
+                {(!previewUrl || (!isPdf && !isImage)) && (
+                  <p className="text-sm text-muted-foreground text-center p-8">
+                    {!previewUrl ? "Preview not available for this file." : "Preview not available for this file type."}
+                  </p>
+                )}
               </div>
             </motion.div>
           </motion.div>
