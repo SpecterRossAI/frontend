@@ -87,6 +87,7 @@ const Configure = () => {
           {sidebarOpen && (confirmedFiles.length > 0 || uploadedFiles.length > 0) && (
             <CaseDocumentsDashboard
               files={confirmedFiles.length > 0 ? confirmedFiles : uploadedFiles}
+              caseId={caseId}
               open={sidebarOpen}
               onToggle={() => setSidebarOpen(!sidebarOpen)}
               onAddMore={() => setShowFileExplorer(true)}
@@ -99,6 +100,7 @@ const Configure = () => {
         {!sidebarOpen && (
           <CaseDocumentsDashboard
             files={confirmedFiles.length > 0 ? confirmedFiles : uploadedFiles}
+            caseId={caseId}
             open={false}
             onToggle={() => setSidebarOpen(true)}
             onAddMore={() => setShowFileExplorer(true)}
