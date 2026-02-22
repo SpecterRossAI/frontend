@@ -1,52 +1,154 @@
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { Gavel, User, UserCircle } from "lucide-react";
+import type { JudgementEntry } from "@/types/simulation";
 
 interface VideoGridProps {
   captionsOn: boolean;
+  isAgentSpeaking?: boolean;
+  agentCaption?: string;
+  judgements?: JudgementEntry[];
+  onAddJudgement?: () => void;
 }
 
-const VideoGrid = ({ captionsOn }: VideoGridProps) => {
+const VideoGrid = ({
+  captionsOn,
+  isAgentSpeaking = false,
+  agentCaption,
+  judgements = [],
+  onAddJudgement,
+}: VideoGridProps) => {
   return (
-    <div className="flex-1 flex flex-col gap-3 p-4 min-h-0">
-      {/* Judge - primary tile */}
-      <div className="flex-[2] min-h-0 relative">
-        <VideoTile
-          name="Hon. AI Judge"
-          role="Presiding Judge"
-          icon={<Gavel className="w-5 h-5" />}
-          speaking
-          gradient="from-primary/5 to-primary/10"
-        />
-        {captionsOn && (
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="absolute bottom-6 left-1/2 -translate-x-1/2 px-4 py-2 rounded-lg bg-card border border-border max-w-lg shadow-sm"
-          >
-            <p className="text-sm text-foreground text-center">
-              "Counsel, please address the relevance of Exhibit A to your argument..."
-            </p>
-          </motion.div>
-        )}
+    <div className="flex-1 flex flex-col gap-4 p-5 min-h-0">
+      {/* Judgements from the judge (agent) */}
+      <div className="shrink-0">
+        <div className="rounded-2xl border border-border bg-gradient-to-br from-card to-card/80 shadow-sm overflow-hidden">
+          <div className="px-5 py-3.5 border-b border-border/80 bg-muted/20 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center">
+                <Gavel className="w-4 h-4 text-primary" />
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold text-foreground">Court Rulings</h3>
+                <p className="text-[11px] text-muted-foreground">
+                  Judgements from the judge (AI agent) as the proceeding unfolds
+                </p>
+              </div>
+            </div>
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={onAddJudgement}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-primary/10 hover:bg-primary/20 border border-primary/20 text-primary text-xs font-semibold transition-all"
+            >
+              <Gavel className="w-3.5 h-3.5" />
+              Get
+            </motion.button>
+          </div>
+
+          <div className="min-h-[88px]">
+            <AnimatePresence mode="popLayout">
+              {judgements.length > 0 ? (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="max-h-36 overflow-y-auto divide-y divide-border/80"
+                >
+                  {judgements.map((j, i) => (
+                    <motion.div
+                      key={j.id}
+                      initial={{ opacity: 0, y: 4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: i * 0.05 }}
+                      className="px-5 py-3.5 flex gap-3 items-start"
+                    >
+                      <span className={`shrink-0 w-2 h-2 mt-1.5 rounded-full ${
+                        /sustained/i.test(j.text) ? "bg-success" :
+                        /overruled/i.test(j.text) ? "bg-destructive" :
+                        /reserved/i.test(j.text) ? "bg-amber-500" :
+                        "bg-primary"
+                      }`} />
+                      <div className="min-w-0 flex-1">
+                        {j.context && (
+                          <p className="text-xs text-muted-foreground line-clamp-1 mb-0.5">
+                            {j.context}
+                          </p>
+                        )}
+                        <p className={`text-sm font-semibold ${
+                          /sustained/i.test(j.text) ? "text-success" :
+                          /overruled/i.test(j.text) ? "text-destructive" :
+                          /reserved/i.test(j.text) ? "text-amber-600" :
+                          "text-foreground"
+                        }`}>
+                          {j.text}
+                        </p>
+                      </div>
+                    </motion.div>
+                  ))}
+                </motion.div>
+              ) : (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="px-5 py-6 flex flex-col items-center justify-center gap-3 text-center"
+                >
+                  <div className="w-12 h-12 rounded-xl bg-muted/60 flex items-center justify-center">
+                    <Gavel className="w-5 h-5 text-muted-foreground" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-foreground">Awaiting rulings</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      The judge will rule on objections and motions as they arise
+                    </p>
+                  </div>
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={onAddJudgement}
+                    className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary/10 hover:bg-primary/20 border border-primary/20 text-primary text-sm font-semibold transition-all"
+                  >
+                    <Gavel className="w-4 h-4" />
+                    Get Judgement
+                  </motion.button>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        </div>
       </div>
 
-      {/* Bottom row - ensure proper min-height */}
-      <div className="flex gap-3 h-[200px] min-h-[180px] shrink-0">
-        <div className="flex-1 min-w-0">
-          <VideoTile
+      {/* Two speakers: AI Opposing Counsel | You */}
+      <div className="flex-1 flex gap-4 min-h-0">
+        <div className="flex-1 min-w-0 flex flex-col gap-2 min-h-0">
+          <div className="flex-1 min-h-0">
+            <VideoTile
             name="AI Opposing Counsel"
             role="Opposing"
-            icon={<UserCircle className="w-5 h-5" />}
-            gradient="from-destructive/5 to-destructive/10"
+            icon={<UserCircle className="w-6 h-6" />}
+            speaking={isAgentSpeaking}
+            isAgent
+            gradient="from-destructive/5 via-destructive/[0.03] to-destructive/10"
           />
+          </div>
+          {captionsOn && agentCaption && (
+            <motion.div
+              initial={{ opacity: 0, y: 4 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              className="px-4 py-2.5 rounded-xl bg-card/95 backdrop-blur-sm border border-border shadow-sm"
+            >
+              <p className="text-sm text-foreground leading-relaxed line-clamp-2">{agentCaption}</p>
+            </motion.div>
+          )}
         </div>
         <div className="flex-1 min-w-0">
           <VideoTile
             name="You"
             role="Defense Counsel"
-            icon={<User className="w-5 h-5" />}
+            icon={<User className="w-6 h-6" />}
             isYou
-            gradient="from-info/5 to-info/10"
+            gradient="from-info/5 via-info/[0.03] to-info/10"
           />
         </div>
       </div>
@@ -60,6 +162,7 @@ const VideoTile = ({
   icon,
   speaking = false,
   isYou = false,
+  isAgent = false,
   gradient,
 }: {
   name: string;
@@ -67,39 +170,78 @@ const VideoTile = ({
   icon: React.ReactNode;
   speaking?: boolean;
   isYou?: boolean;
+  isAgent?: boolean;
   gradient: string;
 }) => {
   return (
-    <div
-      className={`relative w-full h-full rounded-xl bg-gradient-to-br ${gradient} border ${
-        speaking ? "border-primary/40 speaker-ring" : "border-border"
+    <motion.div
+      layout
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3 }}
+      className={`relative w-full h-full min-h-[160px] rounded-2xl bg-gradient-to-br ${gradient} border-2 ${
+        speaking && isAgent ? "border-primary/50 jarvis-speaking shadow-jarvis" : "border-border"
       } flex items-center justify-center transition-all duration-300 overflow-hidden`}
     >
-      <div className="flex flex-col items-center gap-3">
-        <div className={`w-14 h-14 rounded-xl ${isYou ? "bg-info/10" : "bg-muted"} flex items-center justify-center text-muted-foreground`}>
+      {/* Jarvis-style speaking indicator - concentric pulse rings */}
+      {speaking && isAgent && (
+        <div className="absolute inset-0 pointer-events-none overflow-hidden rounded-2xl">
+          <div className="absolute inset-0 jarvis-pulse-ring" />
+          <div className="absolute inset-2 rounded-[14px] jarvis-pulse-ring jarvis-pulse-delay-1" />
+          <div className="absolute inset-4 rounded-xl jarvis-pulse-ring jarvis-pulse-delay-2" />
+          <div className="absolute inset-6 rounded-lg jarvis-pulse-ring jarvis-pulse-delay-3" />
+        </div>
+      )}
+
+      <div className="relative flex flex-col items-center gap-4 z-10">
+        <div
+          className={`w-16 h-16 rounded-2xl flex items-center justify-center transition-all duration-300 ${
+            isYou
+              ? "bg-info/15 text-info"
+              : speaking && isAgent
+              ? "bg-primary/15 text-primary jarvis-icon-glow"
+              : "bg-muted/80 text-muted-foreground"
+          }`}
+        >
           {icon}
         </div>
         {isYou && (
-          <span className="text-xs text-muted-foreground">Camera preview</span>
+          <span className="text-xs text-muted-foreground font-medium">Camera preview</span>
         )}
       </div>
 
-      <div className="absolute bottom-3 left-3 flex items-center gap-2">
-        <span className="px-2.5 py-1 rounded-lg bg-card/90 backdrop-blur-sm text-xs font-medium text-foreground border border-border">
-          {name}
-        </span>
-        <span className="text-[10px] text-muted-foreground">{role}</span>
+      {/* Name badge */}
+      <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className="px-3 py-1.5 rounded-xl bg-card/95 backdrop-blur-sm text-sm font-medium text-foreground border border-border/80 shadow-sm">
+            {name}
+          </span>
+          <span className="text-[11px] text-muted-foreground font-medium">{role}</span>
+        </div>
       </div>
 
-      {speaking && (
-        <div className="absolute top-3 right-3">
-          <span className="flex items-center gap-1 px-2 py-1 rounded-md bg-primary/5 border border-primary/10 text-[10px] text-primary font-medium">
-            <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
-            Speaking
-          </span>
-        </div>
+      {/* Jarvis-style speaking badge */}
+      {speaking && isAgent && (
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="absolute top-4 right-4 z-20"
+        >
+          <div className="flex items-center gap-2.5 px-3.5 py-2 rounded-xl bg-primary/15 border border-primary/30 backdrop-blur-sm">
+            <div className="flex gap-1 items-end h-4">
+              {[0, 1, 2, 3, 4, 5].map((i) => (
+                <span
+                  key={i}
+                  className="w-1 rounded-full bg-primary jarvis-wave-bar"
+                  style={{ animationDelay: `${i * 0.08}s` }}
+                />
+              ))}
+            </div>
+            <span className="text-xs font-semibold text-primary">Speaking</span>
+          </div>
+        </motion.div>
       )}
-    </div>
+    </motion.div>
   );
 };
 
