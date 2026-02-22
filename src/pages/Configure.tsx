@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Scale, ChevronDown, Gavel, BookOpen, Users, Building2, Sparkles, Info } from "lucide-react";
+import { Scale, ChevronDown, Gavel, BookOpen, Users, Building2, Sparkles, Info, Lightbulb, Clock, Shield, ArrowRight, FileText } from "lucide-react";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import FileUploadZone from "@/components/trial/FileUploadZone";
 import FileExplorerModal from "@/components/trial/FileExplorerModal";
-import DocumentSidebar from "@/components/trial/DocumentSidebar";
+import CaseDocumentsDashboard from "@/components/trial/CaseDocumentsDashboard";
 import { useNavigate } from "react-router-dom";
 import type { UploadedFile } from "@/types/files";
 
@@ -33,7 +34,7 @@ const Configure = () => {
   const [showFileExplorer, setShowFileExplorer] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [processed, setProcessed] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
 
   const handleFilesUploaded = (files: UploadedFile[]) => {
     setUploadedFiles(files);
@@ -45,87 +46,109 @@ const Configure = () => {
     }, 2000);
   };
 
-  const handleConfirmSelection = (files: UploadedFile[]) => {
-    setConfirmedFiles(files);
-    setSidebarOpen(true);
+  const handleAddMoreFiles = (newFiles: UploadedFile[]) => {
+    const current = confirmedFiles.length > 0 ? confirmedFiles : uploadedFiles;
+    const merged = [...current, ...newFiles];
+    setUploadedFiles(merged);
+    setConfirmedFiles([]);
+    setIsProcessing(true);
+    setTimeout(() => {
+      setIsProcessing(false);
+      setProcessed(true);
+      setShowFileExplorer(true);
+    }, 2000);
   };
 
-  const totalSize = uploadedFiles.reduce((acc, f) => acc + f.size, 0);
-  const canStart = trialType && confirmedFiles.length > 0;
+  const handleConfirmSelection = (files: UploadedFile[]) => {
+    setConfirmedFiles(files);
+  };
+
+  const displayFiles = confirmedFiles.length > 0 ? confirmedFiles : uploadedFiles;
+  const totalSize = displayFiles.reduce((acc, f) => acc + f.size, 0);
+  const canStart = trialType && displayFiles.length > 0;
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
-      {/* Header */}
-      <header className="border-b border-border px-6 py-4">
-        <div className="max-w-5xl mx-auto flex items-center justify-between">
+    <div className="h-screen bg-background flex flex-col overflow-hidden">
+      {/* Header - narrow dark bar */}
+      <header className="border-b border-slate-700 bg-slate-800 dark:bg-slate-900 px-6 py-3 shrink-0">
+        <div className="w-full flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-lg bg-primary flex items-center justify-center">
-              <Scale className="w-5 h-5 text-primary-foreground" />
+            <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
+              <Scale className="w-4 h-4 text-primary-foreground" />
             </div>
-            <div>
-              <h1 className="text-lg font-semibold text-foreground tracking-tight" style={{ fontFamily: "'Source Serif 4', Georgia, serif" }}>SpecterRoss<span className="text-primary">AI</span></h1>
-              <p className="text-xs text-muted-foreground">Legal Simulation Platform</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-muted-foreground px-3 py-1.5 rounded-full bg-secondary border border-border">
-              <Sparkles className="w-3 h-3 inline mr-1 text-primary" />
-              AI-Powered
+            <span className="text-base font-semibold text-white tracking-tight font-display">
+              SpecterRoss<span className="text-primary-foreground/90">AI</span> Legal Simulation Platform
             </span>
+          </div>
+          <div className="flex items-center gap-3">
+            <ThemeToggle variant="header" />
+            <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-all duration-200">
+              <Sparkles className="w-3 h-3" />
+              AI-Powered
+            </button>
           </div>
         </div>
       </header>
 
       {/* Main with sidebar */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Document Sidebar */}
+        {/* Case Documents Dashboard - always visible */}
         <AnimatePresence>
-          {sidebarOpen && confirmedFiles.length > 0 && (
-            <DocumentSidebar
-              files={confirmedFiles}
-              open={sidebarOpen}
-              onToggle={() => setSidebarOpen(!sidebarOpen)}
-            />
-          )}
+          <CaseDocumentsDashboard
+            files={confirmedFiles.length > 0 ? confirmedFiles : uploadedFiles}
+            open={sidebarOpen}
+            onToggle={() => setSidebarOpen(!sidebarOpen)}
+            onAddMore={() => setShowFileExplorer(true)}
+            isProcessed={processed}
+          />
         </AnimatePresence>
 
-        {/* Sidebar toggle when closed */}
-        {!sidebarOpen && confirmedFiles.length > 0 && (
-          <DocumentSidebar
-            files={confirmedFiles}
+        {/* Dashboard toggle when closed */}
+        {!sidebarOpen && (
+          <CaseDocumentsDashboard
+            files={confirmedFiles.length > 0 ? confirmedFiles : uploadedFiles}
             open={false}
             onToggle={() => setSidebarOpen(true)}
+            onAddMore={() => setShowFileExplorer(true)}
+            isProcessed={processed}
           />
         )}
 
-        {/* Content */}
-        <main className="flex-1 flex items-center justify-center px-6 py-12 overflow-y-auto">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, ease: "easeOut" }}
-            className="w-full max-w-2xl"
-          >
-            <div className="text-center mb-10">
-              <h2 className="text-3xl font-bold text-foreground tracking-tight mb-3">
-                Configure Your Trial Simulation
-              </h2>
-              <p className="text-muted-foreground text-sm max-w-md mx-auto">
-                Set up your courtroom environment, select your judge, and upload case documents to begin.
-              </p>
-            </div>
+        {/* Content - Full dashboard layout */}
+        <main className="flex-1 flex overflow-y-auto bg-muted/30 min-w-0 relative">
+          <div className="absolute inset-0 grid-pattern opacity-30 pointer-events-none" />
+          <div className="flex-1 flex gap-8 lg:gap-10 xl:gap-12 px-6 sm:px-8 lg:px-10 xl:px-12 py-8 lg:py-10 w-full relative z-10">
+            {/* Center: Main Config - flex to fill space */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, ease: "easeOut" }}
+              className="flex-1 min-w-0 flex flex-col"
+            >
+              <div className="mb-8">
+                <h2 className="text-2xl md:text-3xl font-bold text-foreground tracking-tight mb-2">
+                  Configure Your Trial Simulation
+                </h2>
+                <p className="text-muted-foreground text-base max-w-xl">
+                  Set up your courtroom environment, select your judge, and upload case documents to begin.
+                </p>
+              </div>
 
-            <div className="surface-elevated p-8 space-y-8">
+              <div className="surface-elevated p-8 lg:p-10 rounded-2xl space-y-8 lg:space-y-10 border-0 shadow-sm flex-1">
               {/* Step 1 - Trial Type */}
-              <div className="space-y-3">
+              <div className="space-y-4">
                 <label className="text-sm font-medium text-foreground flex items-center gap-2">
-                  <span className="w-6 h-6 rounded-full bg-primary text-primary-foreground text-xs flex items-center justify-center font-semibold">1</span>
+                  <span className={`w-6 h-6 rounded-full text-xs flex items-center justify-center font-semibold ${
+                    trialType ? "bg-success text-white" : "bg-primary text-primary-foreground"
+                  }`}>
+                    {trialType ? "✓" : "1"}
+                  </span>
                   Select Trial Type
                 </label>
                 <div className="relative">
                   <button
                     onClick={() => setTrialDropdownOpen(!trialDropdownOpen)}
-                    className="w-full flex items-center justify-between px-4 py-3 rounded-lg bg-background border border-border text-sm text-foreground hover:border-primary/40 transition-colors"
+                    className="w-full flex items-center justify-between px-4 py-3.5 rounded-xl bg-muted/50 border border-border text-sm font-medium text-foreground hover:border-primary/30 hover:bg-muted/80 transition-all"
                   >
                     <span className="flex items-center gap-2">
                       {trialType ? (
@@ -145,7 +168,7 @@ const Configure = () => {
                         initial={{ opacity: 0, y: -4 }}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: -4 }}
-                        className="absolute z-20 mt-2 w-full rounded-xl surface-modal overflow-hidden"
+                        className="absolute z-20 mt-2 w-full rounded-xl surface-modal overflow-hidden shadow-lg"
                       >
                         {trialTypes.map((t) => {
                           const Icon = t.icon;
@@ -167,9 +190,13 @@ const Configure = () => {
               </div>
 
               {/* Step 2 - Judge */}
-              <div className="space-y-3">
+              <div className="space-y-4">
                 <label className="text-sm font-medium text-foreground flex items-center gap-2">
-                  <span className="w-6 h-6 rounded-full bg-primary text-primary-foreground text-xs flex items-center justify-center font-semibold">2</span>
+                  <span className={`w-6 h-6 rounded-full text-xs flex items-center justify-center font-semibold ${
+                    judge ? "bg-success text-white" : "bg-muted text-muted-foreground"
+                  }`}>
+                    {judge ? "✓" : "2"}
+                  </span>
                   Choose Judge
                   <span className="relative group">
                     <Info className="w-3.5 h-3.5 text-muted-foreground cursor-help" />
@@ -181,7 +208,7 @@ const Configure = () => {
                 <div className="relative">
                   <button
                     onClick={() => setJudgeDropdownOpen(!judgeDropdownOpen)}
-                    className="w-full flex items-center justify-between px-4 py-3 rounded-lg bg-background border border-border text-sm text-foreground hover:border-primary/40 transition-colors"
+                    className="w-full flex items-center justify-between px-4 py-3.5 rounded-xl bg-muted/50 border border-border text-sm font-medium text-foreground hover:border-primary/30 hover:bg-muted/80 transition-all"
                   >
                     <span>{judges.find(j => j.value === judge)?.label || "Select judge..."}</span>
                     <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${judgeDropdownOpen ? "rotate-180" : ""}`} />
@@ -192,7 +219,7 @@ const Configure = () => {
                         initial={{ opacity: 0, y: -4 }}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: -4 }}
-                        className="absolute z-20 mt-2 w-full rounded-xl surface-modal overflow-hidden"
+                        className="absolute z-20 mt-2 w-full rounded-xl surface-modal overflow-hidden shadow-lg"
                       >
                         {judges.map((j) => (
                           <button
@@ -211,16 +238,21 @@ const Configure = () => {
               </div>
 
               {/* Step 3 - Upload */}
-              <div className="space-y-3">
+              <div className="space-y-4">
                 <label className="text-sm font-medium text-foreground flex items-center gap-2">
-                  <span className="w-6 h-6 rounded-full bg-primary text-primary-foreground text-xs flex items-center justify-center font-semibold">3</span>
+                  <span className={`w-6 h-6 rounded-full text-xs flex items-center justify-center font-semibold ${
+                    displayFiles.length > 0 ? "bg-success text-white" : "bg-muted text-muted-foreground"
+                  }`}>
+                    {displayFiles.length > 0 ? "✓" : "3"}
+                  </span>
                   Upload Case Documents
                 </label>
                 <FileUploadZone
                   onFilesUploaded={handleFilesUploaded}
+                  onAddMoreFiles={handleAddMoreFiles}
                   isProcessing={isProcessing}
                   processed={processed}
-                  fileCount={confirmedFiles.length}
+                  fileCount={displayFiles.length}
                   totalSize={totalSize}
                   onViewFiles={() => setShowFileExplorer(true)}
                 />
@@ -230,18 +262,126 @@ const Configure = () => {
               <motion.button
                 whileHover={canStart ? { scale: 1.005 } : {}}
                 whileTap={canStart ? { scale: 0.995 } : {}}
-                onClick={() => canStart && navigate("/simulation", { state: { files: confirmedFiles } })}
+                onClick={() => canStart && navigate("/simulation", { state: { files: displayFiles } })}
                 disabled={!canStart}
-                className={`w-full py-4 rounded-lg text-sm font-semibold transition-all ${
+                className={`w-full py-4 rounded-xl text-sm font-semibold transition-all flex items-center justify-center gap-2 ${
                   canStart
-                    ? "bg-primary text-primary-foreground glow-primary hover:glow-primary-hover cursor-pointer"
+                    ? "bg-primary text-primary-foreground shadow-lg shadow-primary/25 hover:shadow-xl hover:shadow-primary/30 hover:bg-primary/95 cursor-pointer"
                     : "bg-muted text-muted-foreground cursor-not-allowed"
                 }`}
               >
                 Start Trial Simulation
+                <ArrowRight className="w-4 h-4" />
               </motion.button>
             </div>
+
+              {/* Tips - mobile only */}
+              <div className="lg:hidden mt-6 space-y-4">
+                <div className="surface-elevated p-5 rounded-2xl border-0">
+                  <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
+                    <Lightbulb className="w-4 h-4 text-primary" />
+                    Quick Tips
+                  </h3>
+                  <ul className="space-y-2 text-xs text-muted-foreground">
+                    <li>• Include complaint, answer, and key exhibits for best results.</li>
+                    <li>• PDFs and images are fully supported — our AI parses everything.</li>
+                    <li>• Expect ~15–20 min for a mock trial.</li>
+                  </ul>
+                </div>
+              </div>
           </motion.div>
+
+            {/* Right: Summary & Tips - always visible on lg+ */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.1, ease: "easeOut" }}
+              className="w-80 xl:w-96 shrink-0 space-y-5 lg:space-y-6 hidden lg:flex lg:flex-col"
+            >
+              {/* Trial Summary Card */}
+              <div className="surface-elevated p-6 rounded-2xl border-0">
+                <h3 className="text-sm font-semibold text-foreground mb-5 flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-primary" />
+                  Your Trial at a Glance
+                </h3>
+                <div className="space-y-3">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Trial Type</span>
+                    <span className="font-medium text-foreground truncate max-w-[120px]">
+                      {trialType ? trialTypes.find((t) => t.value === trialType)?.label ?? "—" : "—"}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Judge</span>
+                    <span className="font-medium text-foreground truncate max-w-[120px]">
+                      {judges.find((j) => j.value === judge)?.label ?? "—"}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Documents</span>
+                    <span className="font-medium text-foreground">
+                      {displayFiles.length} file{displayFiles.length !== 1 ? "s" : ""}
+                    </span>
+                  </div>
+                </div>
+                {canStart && (
+                  <div className="mt-4 pt-4 border-t border-border">
+                    <p className="text-xs text-success font-semibold flex items-center gap-1.5">
+                      <Shield className="w-3.5 h-3.5" />
+                      Ready to start
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Quick Tips */}
+              <div className="surface-elevated p-6 rounded-2xl border-0">
+                <h3 className="text-sm font-semibold text-foreground mb-5 flex items-center gap-2">
+                  <Lightbulb className="w-4 h-4 text-primary" />
+                  Quick Tips
+                </h3>
+                <ul className="space-y-3 text-xs text-muted-foreground">
+                  <li className="flex gap-2">
+                    <span className="text-primary font-bold shrink-0">1.</span>
+                    Include complaint, answer, and key exhibits for best results.
+                  </li>
+                  <li className="flex gap-2">
+                    <span className="text-primary font-bold shrink-0">2.</span>
+                    PDFs and images are fully supported — our AI parses everything.
+                  </li>
+                  <li className="flex gap-2">
+                    <span className="text-primary font-bold shrink-0">3.</span>
+                    Expect ~15–20 min for a mock trial; depositions may run longer.
+                  </li>
+                </ul>
+              </div>
+
+              {/* Estimated Duration */}
+              <div className="surface-elevated p-6 rounded-2xl border-0">
+                <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-primary" />
+                  Estimated Duration
+                </h3>
+                <p className="text-2xl font-bold text-foreground">
+                  {trialType === "deposition" ? "30–45 min" : trialType ? "15–20 min" : "—"}
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Based on your trial type selection
+                </p>
+              </div>
+
+              {/* Recent Simulations */}
+              <div className="surface-elevated p-6 rounded-2xl border-0">
+                <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-primary" />
+                  Recent Simulations
+                </h3>
+                <p className="text-sm text-muted-foreground">
+                  No simulations yet. Start your first trial above.
+                </p>
+              </div>
+            </motion.div>
+          </div>
         </main>
       </div>
 
