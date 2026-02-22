@@ -5,6 +5,7 @@ import type { UploadedFile } from "@/types/files";
 
 interface DocumentSidebarProps {
   files: UploadedFile[];
+  caseId?: string;
   open: boolean;
   onToggle: () => void;
 }
@@ -114,11 +115,19 @@ const TreeItem = ({
   );
 };
 
-const DocumentSidebar = ({ files, open, onToggle }: DocumentSidebarProps) => {
+const API_BASE = import.meta.env.VITE_API_URL || "";
+
+const DocumentSidebar = ({ files, caseId, open, onToggle }: DocumentSidebarProps) => {
   const [selectedFile, setSelectedFile] = useState<UploadedFile | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
   const tree = buildTree(files);
   const totalSize = files.reduce((a, f) => a + f.size, 0);
+  const previewUrl =
+    caseId && (selectedFile?.storedName ?? selectedFile?.name)
+      ? `${API_BASE || ""}/api/cases/${encodeURIComponent(caseId)}/files/${encodeURIComponent(selectedFile.storedName ?? selectedFile.name)}`
+      : null;
+  const isPdf = selectedFile?.type === "application/pdf";
+  const isImage = selectedFile?.type?.startsWith("image/");
 
   const handleSelect = (f: UploadedFile) => {
     setSelectedFile(f);
@@ -189,15 +198,15 @@ const DocumentSidebar = ({ files, open, onToggle }: DocumentSidebarProps) => {
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
               onClick={(e) => e.stopPropagation()}
-              className="w-full max-w-2xl surface-modal p-8"
+              className="w-full max-w-2xl max-h-[90vh] surface-modal flex flex-col overflow-hidden"
             >
-              <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center">
+              <div className="flex items-center justify-between p-4 border-b border-border shrink-0">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center shrink-0">
                     {getIcon(selectedFile.name)}
                   </div>
-                  <div>
-                    <p className="text-sm font-semibold text-foreground">{selectedFile.name}</p>
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-foreground truncate">{selectedFile.name}</p>
                     <p className="text-xs text-muted-foreground">
                       {formatBytes(selectedFile.size)} · {selectedFile.type || "Document"}
                     </p>
@@ -205,15 +214,32 @@ const DocumentSidebar = ({ files, open, onToggle }: DocumentSidebarProps) => {
                 </div>
                 <button
                   onClick={() => setPreviewOpen(false)}
-                  className="p-2 rounded-lg hover:bg-muted transition-colors"
+                  className="p-2 rounded-lg hover:bg-muted transition-colors shrink-0"
                 >
                   <X className="w-4 h-4 text-muted-foreground" />
                 </button>
               </div>
-              <div className="rounded-lg bg-muted/50 border border-border p-12 flex items-center justify-center">
-                <p className="text-sm text-muted-foreground text-center">
-                  Document preview would be rendered here in the full implementation.
-                </p>
+              <div className="flex-1 min-h-0 rounded-b-lg border-border bg-muted/30 overflow-hidden">
+                {previewUrl && isPdf && (
+                  <iframe src={previewUrl} title={selectedFile.name} className="w-full h-full min-h-[60vh]" />
+                )}
+                {previewUrl && isImage && (
+                  <div className="w-full h-full min-h-[60vh] flex items-center justify-center p-4">
+                    <img src={previewUrl} alt={selectedFile.name} className="max-w-full max-h-full object-contain" />
+                  </div>
+                )}
+                {(!previewUrl || (!isPdf && !isImage)) && (
+                  <div className="p-12 flex flex-col items-center justify-center gap-2 text-center">
+                    <p className="text-sm text-muted-foreground">
+                      {!previewUrl ? "Preview not available for this file." : "Preview not available for this file type."}
+                    </p>
+                    {previewUrl && (
+                      <a href={previewUrl} download={selectedFile.name} className="text-sm text-primary hover:underline">
+                        Download
+                      </a>
+                    )}
+                  </div>
+                )}
               </div>
             </motion.div>
           </motion.div>

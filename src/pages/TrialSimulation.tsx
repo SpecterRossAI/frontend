@@ -50,16 +50,17 @@ const mockFiles: UploadedFile[] = [
 
 /** Generate a stable unique case ID for this simulation session (all documents and conversation are linked to it). */
 function useCaseId(): string {
-  const [caseId] = useState(() => crypto.randomUUID());
+  const [caseId] = useState(() => Math.floor(100000 + Math.random() * 900000).toString());
   return caseId;
 }
 
 const TrialSimulation = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const caseId = useCaseId();
-  /** Documents for this case: from Configure (route state) or mock when opened without going through Configure. */
-  const files = (location.state as { files?: UploadedFile[] } | null)?.files ?? mockFiles;
+  const state = (location.state as { files?: UploadedFile[]; caseId?: string } | null) ?? {};
+  const defaultCaseId = useCaseId();
+  const caseId = state.caseId ?? defaultCaseId;
+  const files = state.files ?? mockFiles;
   const [strategyOpen, setStrategyOpen] = useState(true);
   const [objectionOpen, setObjectionOpen] = useState(false);
   const [captionsOn, setCaptionsOn] = useState(false);
@@ -189,6 +190,7 @@ const TrialSimulation = () => {
           {docSidebarOpen && (
             <DocumentSidebar
               files={files}
+              caseId={caseId}
               open={docSidebarOpen}
               onToggle={() => setDocSidebarOpen(!docSidebarOpen)}
             />
@@ -197,6 +199,7 @@ const TrialSimulation = () => {
         {!docSidebarOpen && (
           <DocumentSidebar
             files={files}
+            caseId={caseId}
             open={false}
             onToggle={() => setDocSidebarOpen(true)}
           />

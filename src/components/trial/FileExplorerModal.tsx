@@ -7,6 +7,7 @@ interface FileExplorerModalProps {
   open: boolean;
   onClose: () => void;
   files: UploadedFile[];
+  caseId?: string;
   onConfirmSelection?: (files: UploadedFile[]) => void;
   selectionMode?: boolean;
 }
@@ -114,11 +115,19 @@ const formatBytes = (bytes: number) => {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i];
 };
 
-const FileExplorerModal = ({ open, onClose, files, onConfirmSelection, selectionMode = false }: FileExplorerModalProps) => {
+const API_BASE = import.meta.env.VITE_API_URL || "";
+
+const FileExplorerModal = ({ open, onClose, files, caseId, onConfirmSelection, selectionMode = false }: FileExplorerModalProps) => {
   const [selectedFile, setSelectedFile] = useState<UploadedFile | null>(null);
   const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set(files.map(f => f.name)));
   const tree = buildTree(files);
   const totalSize = files.reduce((a, f) => a + f.size, 0);
+  const previewUrl =
+    caseId && (selectedFile?.storedName ?? selectedFile?.name)
+      ? `${API_BASE || ""}/api/cases/${encodeURIComponent(caseId)}/files/${encodeURIComponent(selectedFile.storedName ?? selectedFile.name)}`
+      : null;
+  const isPdf = selectedFile?.type === "application/pdf";
+  const isImage = selectedFile?.type?.startsWith("image/");
 
   const handleSelect = (f: UploadedFile) => {
     if (selectionMode) {
@@ -188,22 +197,49 @@ const FileExplorerModal = ({ open, onClose, files, onConfirmSelection, selection
               ))}
             </div>
 
-            <div className="flex-1 flex items-center justify-center p-8">
+            <div className="flex-1 flex flex-col min-h-0 p-4">
               {selectedFile ? (
-                <div className="text-center space-y-4">
-                  <div className="w-16 h-16 rounded-lg bg-muted flex items-center justify-center mx-auto">
-                    {getIcon(selectedFile.name)}
+                <>
+                  <div className="flex items-center gap-3 mb-3 shrink-0">
+                    <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center shrink-0">
+                      {getIcon(selectedFile.name)}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-foreground truncate">{selectedFile.name}</p>
+                      <p className="text-xs text-muted-foreground">{formatBytes(selectedFile.size)} · {selectedFile.type || "Document"}</p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-sm font-medium text-foreground">{selectedFile.name}</p>
-                    <p className="text-xs text-muted-foreground mt-1">{formatBytes(selectedFile.size)} · {selectedFile.type || "Document"}</p>
+                  <div className="flex-1 min-h-0 rounded-lg border border-border overflow-hidden bg-muted/30">
+                    {previewUrl && isPdf && (
+                      <iframe src={previewUrl} title={selectedFile.name} className="w-full h-full min-h-[60vh]" />
+                    )}
+                    {previewUrl && isImage && (
+                      <div className="w-full h-full min-h-[60vh] flex items-center justify-center p-4">
+                        <img src={previewUrl} alt={selectedFile.name} className="max-w-full max-h-full object-contain" />
+                      </div>
+                    )}
+                    {(!previewUrl || (!isPdf && !isImage)) && (
+                      <div className="h-full flex items-center justify-center p-8 text-center">
+                        <div className="space-y-2">
+                          {!previewUrl ? (
+                            <p className="text-xs text-muted-foreground">Preview not available for this file.</p>
+                          ) : (
+                            <p className="text-xs text-muted-foreground">Preview not available for this file type.</p>
+                          )}
+                          {previewUrl && (
+                            <a href={previewUrl} download={selectedFile.name} className="text-xs text-primary hover:underline">
+                              Download
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
-                  <p className="text-xs text-muted-foreground max-w-xs">
-                    Document preview would be rendered here in the full implementation.
-                  </p>
-                </div>
+                </>
               ) : (
-                <p className="text-sm text-muted-foreground">Select a file to preview</p>
+                <div className="flex-1 flex items-center justify-center">
+                  <p className="text-sm text-muted-foreground">Select a file to preview</p>
+                </div>
               )}
             </div>
           </div>

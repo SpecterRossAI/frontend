@@ -1,10 +1,15 @@
 import { useCallback } from "react";
 import { motion } from "framer-motion";
-import { Upload, FileText, CheckCircle2, Loader2, Eye } from "lucide-react";
+import { Upload, CheckCircle2, Loader2, Eye } from "lucide-react";
 import type { UploadedFile } from "@/types/files";
 
+const API_BASE = import.meta.env.VITE_API_URL || "";
+
 interface FileUploadZoneProps {
+  caseId: string;
   onFilesUploaded: (files: UploadedFile[]) => void;
+  onUploadStart?: () => void;
+  onUploadError?: (error: Error) => void;
   isProcessing: boolean;
   processed: boolean;
   fileCount: number;
@@ -20,32 +25,77 @@ const formatBytes = (bytes: number) => {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i];
 };
 
-const FileUploadZone = ({ onFilesUploaded, isProcessing, processed, fileCount, totalSize, onViewFiles }: FileUploadZoneProps) => {
+const FileUploadZone = ({ caseId, onFilesUploaded, onUploadStart, onUploadError, isProcessing, processed, fileCount, totalSize, onViewFiles }: FileUploadZoneProps) => {
+  const uploadFiles = useCallback(
+    async (fileList: File[]) => {
+      if (fileList.length === 0) return;
+      const pdfs = fileList.filter((f) => f.name && f.name.toLowerCase().endsWith(".pdf"));
+      if (pdfs.length === 0) {
+        const err = new Error("Only PDF files are supported. Please upload PDF documents.");
+        onUploadError?.(err);
+        throw err;
+      }
+      if (pdfs.length < fileList.length) {
+        console.warn(`Skipped ${fileList.length - pdfs.length} non-PDF file(s). Only PDFs are uploaded to the case.`);
+      }
+      onUploadStart?.();
+      const base = API_BASE || "";
+      const results: UploadedFile[] = [];
+      try {
+        await Promise.all(
+          pdfs.map(async (file) => {
+            const formData = new FormData();
+            formData.append("file", file);
+            const res = await fetch(`${base}/api/cases/${encodeURIComponent(caseId)}/pdf`, {
+              method: "POST",
+              body: formData,
+            });
+            if (!res.ok) {
+              const errBody = await res.json().catch(() => ({}));
+              throw new Error(typeof errBody?.detail === "string" ? errBody.detail : errBody?.error ?? "Upload failed");
+            }
+            const data = (await res.json()) as {
+              case_id: string;
+              doc_id: string;
+              source_uri: string;
+              chunks_count: number;
+            };
+            results.push({
+              name: file.name,
+              size: file.size,
+              type: file.type || "application/pdf",
+              path: data.source_uri,
+              storedName: file.name,
+              doc_id: data.doc_id,
+              source_uri: data.source_uri,
+            });
+          })
+        );
+        onFilesUploaded(results);
+      } catch (e) {
+        onUploadError?.(e instanceof Error ? e : new Error(String(e)));
+        throw e;
+      }
+    },
+    [caseId, onFilesUploaded, onUploadStart, onUploadError]
+  );
+
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
       e.preventDefault();
-      const files = Array.from(e.dataTransfer.files).map((f) => ({
-        name: f.name,
-        size: f.size,
-        type: f.type,
-        path: f.name,
-      }));
-      if (files.length) onFilesUploaded(files);
+      const files = Array.from(e.dataTransfer.files);
+      if (files.length) uploadFiles(files);
     },
-    [onFilesUploaded]
+    [uploadFiles]
   );
 
   const handleChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
-      const files = Array.from(e.target.files || []).map((f) => ({
-        name: f.name,
-        size: f.size,
-        type: f.type,
-        path: f.webkitRelativePath || f.name,
-      }));
-      if (files.length) onFilesUploaded(files);
+      const files = Array.from(e.target.files || []);
+      if (files.length) uploadFiles(files);
+      e.target.value = "";
     },
-    [onFilesUploaded]
+    [uploadFiles]
   );
 
   if (isProcessing) {
@@ -108,7 +158,7 @@ const FileUploadZone = ({ onFilesUploaded, isProcessing, processed, fileCount, t
             Drop files or <span className="text-primary underline underline-offset-2">browse</span>
           </p>
           <p className="text-xs text-muted-foreground mt-1">
-            PDF, DOCX, TXT, Images — supports folders
+            PDF only — documents are uploaded to your case and processed for AI
           </p>
         </div>
       </div>
