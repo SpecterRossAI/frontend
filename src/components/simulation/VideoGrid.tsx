@@ -52,39 +52,54 @@ const VideoGrid = ({
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
-                  className="max-h-36 overflow-y-auto divide-y divide-border/80"
+                  className="max-h-44 overflow-y-auto"
                 >
-                  {judgements.map((j, i) => (
-                    <motion.div
-                      key={j.id}
-                      initial={{ opacity: 0, y: 4 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: i * 0.05 }}
-                      className="px-5 py-3.5 flex gap-3 items-start"
-                    >
-                      <span className={`shrink-0 w-2 h-2 mt-1.5 rounded-full ${
-                        /sustained/i.test(j.text) ? "bg-success" :
-                        /overruled/i.test(j.text) ? "bg-destructive" :
-                        /reserved/i.test(j.text) ? "bg-amber-500" :
-                        "bg-primary"
-                      }`} />
-                      <div className="min-w-0 flex-1">
-                        {j.context && (
-                          <p className="text-xs text-muted-foreground line-clamp-1 mb-0.5">
-                            {j.context}
-                          </p>
+                  {judgements.map((j, i) => {
+                    const isOpening = j.stage === "opening";
+                    const isStart = j.stage === "start";
+                    const isProcedural = isOpening || isStart;
+                    return (
+                      <motion.div
+                        key={j.id}
+                        initial={{ opacity: 0, y: 4 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: i * 0.05 }}
+                        className={`px-5 py-3.5 flex gap-3 items-start ${
+                          isProcedural ? "bg-muted/30 border-b border-border/50 first:border-t-0" : ""
+                        }`}
+                      >
+                        {!isProcedural && (
+                          <span className={`shrink-0 w-2 h-2 mt-1.5 rounded-full ${
+                            /sustained/i.test(j.text) ? "bg-success" :
+                            /overruled/i.test(j.text) ? "bg-destructive" :
+                            /reserved/i.test(j.text) ? "bg-amber-500" :
+                            "bg-primary"
+                          }`} />
                         )}
-                        <p className={`text-sm font-semibold ${
-                          /sustained/i.test(j.text) ? "text-success" :
-                          /overruled/i.test(j.text) ? "text-destructive" :
-                          /reserved/i.test(j.text) ? "text-amber-600" :
-                          "text-foreground"
-                        }`}>
-                          {j.text}
-                        </p>
-                      </div>
-                    </motion.div>
-                  ))}
+                        <div className="min-w-0 flex-1">
+                          {isProcedural && (
+                            <span className="text-[10px] uppercase tracking-wider text-primary font-semibold">
+                              {isOpening ? "Court" : "Judge"}
+                            </span>
+                          )}
+                          {j.context && !isProcedural && (
+                            <p className="text-xs text-muted-foreground line-clamp-1 mb-0.5">
+                              {j.context}
+                            </p>
+                          )}
+                          <p className={`text-sm ${isProcedural ? "text-foreground font-medium" : "font-semibold"} ${
+                            isProcedural ? "" :
+                            /sustained/i.test(j.text) ? "text-success" :
+                            /overruled/i.test(j.text) ? "text-destructive" :
+                            /reserved/i.test(j.text) ? "text-amber-600" :
+                            "text-foreground"
+                          }`}>
+                            {j.text}
+                          </p>
+                        </div>
+                      </motion.div>
+                    );
+                  })}
                 </motion.div>
               ) : (
                 <motion.div

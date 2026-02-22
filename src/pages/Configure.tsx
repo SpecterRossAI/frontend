@@ -39,23 +39,18 @@ const Configure = () => {
 
   const handleFilesUploaded = (files: UploadedFile[]) => {
     setUploadedFiles(files);
+    setConfirmedFiles(files);
     setIsProcessing(false);
     setProcessed(true);
-    setShowFileExplorer(true);
   };
 
   const handleAddMoreFiles = (newFiles: UploadedFile[]) => {
     const current = confirmedFiles.length > 0 ? confirmedFiles : uploadedFiles;
     const merged = [...current, ...newFiles];
     setUploadedFiles(merged);
-    setConfirmedFiles([]);
+    setConfirmedFiles(merged);
     setIsProcessing(false);
     setProcessed(true);
-    setShowFileExplorer(true);
-  };
-
-  const handleConfirmSelection = (files: UploadedFile[]) => {
-    setConfirmedFiles(files);
   };
 
   const displayFiles = confirmedFiles.length > 0 ? confirmedFiles : uploadedFiles;
@@ -72,7 +67,7 @@ const Configure = () => {
               <Scale className="w-4 h-4 text-primary-foreground" />
             </div>
             <span className="text-base font-semibold text-white tracking-tight font-display">
-              SpecterRoss<span className="text-primary-foreground/90">AI</span> Legal Simulation Platform
+              SpecterRoss<span className="text-blue-400">AI</span> Legal Simulation Platform
             </span>
           </div>
           <div className="flex items-center gap-3">
@@ -385,14 +380,13 @@ const Configure = () => {
         </main>
       </div>
 
-      {/* File Explorer Modal */}
+      {/* File Explorer Modal - view only, no selection required */}
       <FileExplorerModal
         open={showFileExplorer}
         onClose={() => setShowFileExplorer(false)}
-        files={uploadedFiles}
+        files={displayFiles}
         caseId={caseId}
-        selectionMode
-        onConfirmSelection={handleConfirmSelection}
+        selectionMode={false}
       />
     </div>
   );

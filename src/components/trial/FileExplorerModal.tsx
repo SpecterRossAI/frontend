@@ -247,21 +247,29 @@ const FileExplorerModal = ({ open, onClose, files, caseId, onConfirmSelection, s
           {/* Footer with action buttons */}
           <div className="flex items-center justify-between px-6 py-4 border-t border-border bg-muted/30">
             <p className="text-xs text-muted-foreground">
-              {selectionMode ? `${selectedFiles.size} of ${files.length} files selected` : `${files.length} files uploaded`}
+              {selectionMode ? `${selectedFiles.size} of ${files.length} files selected` : `${files.length} files`}
             </p>
             <div className="flex items-center gap-3">
+              {selectionMode && (
+                <button
+                  onClick={onClose}
+                  className="px-4 py-2 rounded-lg text-xs font-medium text-muted-foreground hover:bg-muted transition-colors border border-border"
+                >
+                  Cancel
+                </button>
+              )}
               <button
-                onClick={onClose}
-                className="px-4 py-2 rounded-lg text-xs font-medium text-muted-foreground hover:bg-muted transition-colors border border-border"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleConfirm}
+                onClick={selectionMode ? handleConfirm : onClose}
                 className="flex items-center gap-2 px-5 py-2 rounded-lg text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
               >
-                <Upload className="w-3.5 h-3.5" />
-                {selectionMode ? `Select ${selectedFiles.size} Documents` : "Confirm Documents"}
+                {selectionMode ? (
+                  <>
+                    <Upload className="w-3.5 h-3.5" />
+                    Select {selectedFiles.size} Documents
+                  </>
+                ) : (
+                  "Close"
+                )}
               </button>
             </div>
           </div>
