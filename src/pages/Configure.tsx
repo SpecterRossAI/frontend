@@ -230,7 +230,7 @@ const Configure = () => {
               <motion.button
                 whileHover={canStart ? { scale: 1.005 } : {}}
                 whileTap={canStart ? { scale: 0.995 } : {}}
-                onClick={() => canStart && navigate("/simulation")}
+                onClick={() => canStart && navigate("/simulation", { state: { files: confirmedFiles } })}
                 disabled={!canStart}
                 className={`w-full py-4 rounded-lg text-sm font-semibold transition-all ${
                   canStart

@@ -1,16 +1,20 @@
 # Conversation API (in-memory)
 
-Small in-memory API used so the backend can poll conversation updates (e.g. every 5–10 seconds) and feed them to an LLM for suggestions.
+Per-case conversation buffers so the backend can poll every X seconds and get defense (user) / prosecutor (agent) text since last poll.
 
 - **Run:** `npm run conversation-api` (listens on port 3001, or `CONVERSATION_API_PORT`).
 - **Vite proxy:** In dev, the frontend uses `/api` which is proxied to this server.
+
+## Case ID
+
+Each simulation session has a unique `case_id` (UUID from the frontend). All conversation and documents for that session are linked to it.
 
 ## Endpoints
 
 | Method | Path | Description |
 |--------|------|-------------|
-| POST | `/api/conversation` | Append new messages. Body: `{ "messages": [{ "role": "user" \| "agent", "text": "..." }] }`. Called by the frontend (only sends new messages since last push). |
-| GET | `/api/conversation/updates?after=N` | Return only messages after index `N`. Response: `{ "messages": [...], "after": N, "lastIndex": M }`. Backend should poll every 5–10s and use `after=lastIndex` on the next request. |
-| POST | `/api/conversation/clear` | Clear in-memory conversation (e.g. when starting a new session). |
+| POST | `/api/conversation` | Append messages for a case. Body: `{ "case_id": "<uuid>", "messages": [{ "role": "user" \| "agent", "text": "..." }] }`. User → defense buffer, agent → prosecutor buffer. |
+| GET | `/api/conversation/updates?case_id=<uuid>` | **Backend polls this every X seconds.** Returns `{ "case_id", "thread_id", "defense", "prosecutor" }`. Defense = all user text since last poll (concatenated). Prosecutor = all agent text since last poll. Buffers are then cleared and `thread_id` incremented. |
+| POST | `/api/conversation/clear` | Clear one case. Body: `{ "case_id": "<uuid>" }`. |
 
 Storage is in-memory only (no DB or file). For production you may want to move this behind your main backend or add persistence.
