@@ -1,14 +1,17 @@
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Scale } from "lucide-react";
+import { Scale, Mic, Users } from "lucide-react";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { useConversation, type Callbacks } from "@elevenlabs/react";
 import VideoGrid from "@/components/simulation/VideoGrid";
 import ControlBar from "@/components/simulation/ControlBar";
 import StrategyPanel from "@/components/simulation/StrategyPanel";
 import ObjectionModal from "@/components/simulation/ObjectionModal";
-import DocumentSidebar from "@/components/trial/DocumentSidebar";
+import JudgementModal from "@/components/simulation/JudgementModal";
+import CaseDocumentsDashboard from "@/components/trial/CaseDocumentsDashboard";
 import { useNavigate, useLocation } from "react-router-dom";
 import type { UploadedFile } from "@/types/files";
+import type { JudgementEntry } from "@/types/simulation";
 
 const API_BASE = import.meta.env.VITE_API_URL || "";
 const CONVERSATION_API_BASE = import.meta.env.VITE_CONVERSATION_API_URL || "";
@@ -62,27 +65,56 @@ const TrialSimulation = () => {
   const files = (location.state as { files?: UploadedFile[] } | null)?.files ?? mockFiles;
   const [strategyOpen, setStrategyOpen] = useState(true);
   const [objectionOpen, setObjectionOpen] = useState(false);
+  const [judgementModalOpen, setJudgementModalOpen] = useState(false);
   const [captionsOn, setCaptionsOn] = useState(false);
-  const [docSidebarOpen, setDocSidebarOpen] = useState(false);
+  const [docSidebarOpen, setDocSidebarOpen] = useState(true);
   const [voiceError, setVoiceError] = useState<string | null>(null);
   const [voiceStep, setVoiceStep] = useState<"idle" | "fetching" | "connecting" | "connected" | "error">("idle");
   const [signedUrlReceived, setSignedUrlReceived] = useState(false);
   const [messages, setMessages] = useState<MessageEntry[]>([]);
+  const [judgements, setJudgements] = useState<JudgementEntry[]>([]);
   const lastSentIndexRef = useRef(0);
+  const judgementIdRef = useRef(0);
+  const lastUserContextRef = useRef<string | undefined>();
 
-  const { startSession, endSession, status: voiceStatus } = useConversation({
+  const { startSession, endSession, status: voiceStatus, isSpeaking } = useConversation({
     onMessage: (msg: MessagePayload) => {
       const extra = msg as MessagePayload & Record<string, unknown>;
+      const role = (msg?.role ?? extra?.role as string) ?? "unknown";
+
+      // Judge is always the agent — judgements come from agent_response, ruling field, or role "judge"
+      const agentText = msg?.message ?? (extra?.agent_response as string | undefined);
+      const rulingText =
+        (extra?.ruling as string | undefined) ??
+        (extra?.judgement as string | undefined) ??
+        (role === "judge" ? agentText : undefined) ??
+        // Agent (judge) rulings: agent response starts with Sustained/Overruled/Reserved
+        (agentText && /^(Sustained|Overruled|Reserved)/i.test(agentText) ? agentText : undefined);
+
+      if (rulingText) {
+        setJudgements((prev) => [
+          ...prev,
+          {
+            id: `j-${++judgementIdRef.current}`,
+            text: rulingText,
+            context: lastUserContextRef.current,
+            timestamp: Date.now(),
+          },
+        ]);
+      }
+
       const text =
         msg?.message ??
         (extra?.user_transcript as string | undefined) ??
         (extra?.agent_response as string | undefined) ??
         JSON.stringify(msg);
-      if (text)
+      if (text) {
+        if (role === "user") lastUserContextRef.current = text;
         setMessages((prev) => [
           ...prev,
-          { role: msg?.role ?? "unknown", text },
+          { role, text },
         ]);
+      }
     },
     onError: (err: { message?: string }) => {
       setVoiceError(err?.message ?? "Error");
@@ -153,58 +185,82 @@ const TrialSimulation = () => {
 
   return (
     <div className="h-screen bg-background flex flex-col overflow-hidden">
-      {/* Top bar */}
-      <header className="flex items-center justify-between px-5 py-3 border-b border-border bg-card z-10">
-        <div className="flex items-center gap-2.5">
-          <div className="w-7 h-7 rounded-md bg-primary/5 border border-primary/10 flex items-center justify-center">
-            <Scale className="w-4 h-4 text-primary" />
+      {/* Top bar - dashboard style */}
+      <header className="flex items-center justify-between px-6 py-3 border-b border-border bg-slate-800 shrink-0 z-10">
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
+              <Scale className="w-4 h-4 text-primary-foreground" />
+            </div>
+            <span className="text-sm font-semibold text-white font-display">SpecterRoss<span className="text-primary-foreground/90">AI</span></span>
           </div>
-          <span className="text-sm font-semibold text-foreground" style={{ fontFamily: "'Source Serif 4', Georgia, serif" }}>SpecterRoss<span className="text-primary">AI</span></span>
-          <span className="text-xs text-muted-foreground">· Mock Trial in Session</span>
+          <span className="text-xs text-slate-300 font-medium">· Mock Trial in Session</span>
+          <div className="hidden sm:flex items-center gap-2 pl-4 border-l border-slate-600">
+            <span className="flex items-center gap-1.5 text-xs text-slate-300">
+              <Users className="w-3.5 h-3.5" />
+              2 participants
+            </span>
+            <span className="flex items-center gap-1.5 text-xs text-slate-300">
+              <Mic className="w-3.5 h-3.5" />
+              Voice active
+            </span>
+          </div>
         </div>
         <div className="flex items-center gap-3">
           {voiceError && (
-            <span className="text-xs text-destructive" title={voiceError}>
+            <span className="text-xs text-red-400" title={voiceError}>
               Voice: {voiceError}
             </span>
           )}
           {!voiceError && (
-            <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              <span className={`w-2 h-2 rounded-full ${voiceStatus === "connected" ? "bg-success animate-pulse" : "bg-muted"}`} />
-              {voiceStep === "fetching" && "Fetching signed URL…"}
-              {voiceStep === "connecting" && (signedUrlReceived ? "Signed URL received, connecting…" : "Connecting…")}
-              {voiceStep === "connected" && "Voice live"}
+            <span className="flex items-center gap-1.5 text-xs text-slate-300">
+              <span className={`w-2 h-2 rounded-full ${voiceStatus === "connected" ? "bg-success animate-pulse" : "bg-slate-500"}`} />
+              {voiceStep === "fetching" && "Connecting…"}
+              {voiceStep === "connecting" && "Connecting…"}
+              {voiceStep === "connected" && "Live"}
               {voiceStep === "idle" && voiceStatus}
             </span>
           )}
-          <span className="text-xs text-muted-foreground font-mono">00:12:34</span>
+          <span className="text-xs font-medium text-slate-300 font-mono tabular-nums px-2 py-1 rounded-md bg-slate-700/50">00:12:34</span>
+          <ThemeToggle variant="header" />
           <LatencyBadge />
         </div>
       </header>
 
       {/* Main area */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Document sidebar */}
+        {/* Case Documents Dashboard */}
         <AnimatePresence>
           {docSidebarOpen && (
-            <DocumentSidebar
+            <CaseDocumentsDashboard
               files={files}
               open={docSidebarOpen}
               onToggle={() => setDocSidebarOpen(!docSidebarOpen)}
+              isProcessed
             />
           )}
         </AnimatePresence>
         {!docSidebarOpen && (
-          <DocumentSidebar
+          <CaseDocumentsDashboard
             files={files}
             open={false}
             onToggle={() => setDocSidebarOpen(true)}
+            isProcessed
           />
         )}
 
-        {/* Center: video + controls */}
-        <div className="flex-1 flex flex-col min-w-0">
-          <VideoGrid captionsOn={captionsOn} />
+        {/* Center: video + controls - full dashboard layout */}
+        <div className="flex-1 flex flex-col min-w-0 bg-muted/30 relative">
+          <div className="absolute inset-0 grid-pattern opacity-20 pointer-events-none" />
+          <div className="relative z-10 flex-1 flex flex-col min-h-0">
+          <VideoGrid
+            captionsOn={captionsOn}
+            isAgentSpeaking={isSpeaking}
+            agentCaption={messages.filter((m) => m.role !== "user").pop()?.text}
+            judgements={judgements}
+            onAddJudgement={() => setJudgementModalOpen(true)}
+          />
+          </div>
           <ControlBar
             onToggleStrategy={() => setStrategyOpen(!strategyOpen)}
             onObjection={() => setObjectionOpen(true)}
@@ -231,16 +287,26 @@ const TrialSimulation = () => {
       </div>
 
       <ObjectionModal open={objectionOpen} onClose={() => setObjectionOpen(false)} />
+      <JudgementModal
+        open={judgementModalOpen}
+        onClose={() => setJudgementModalOpen(false)}
+        onJudgementAdded={(text) =>
+          setJudgements((prev) => [
+            ...prev,
+            { id: `j-${++judgementIdRef.current}`, text, timestamp: Date.now() },
+          ])
+        }
+      />
     </div>
   );
 };
 
 const LatencyBadge = () => {
   const latency = 45;
-  const color = latency < 100 ? "bg-success" : latency < 250 ? "bg-warning" : "bg-destructive";
+  const color = latency < 100 ? "bg-success" : latency < 250 ? "bg-amber-500" : "bg-red-500";
   return (
-    <span className="flex items-center gap-1.5 text-xs text-muted-foreground px-2 py-1 rounded-md bg-muted border border-border">
-      <span className={`w-1.5 h-1.5 rounded-full ${color}`} />
+    <span className="flex items-center gap-1.5 text-xs font-medium text-slate-300 px-2.5 py-1 rounded-lg bg-slate-700/50 border border-slate-600 tabular-nums">
+      <span className={`w-1.5 h-1.5 rounded-full ${color} animate-pulse`} />
       {latency}ms
     </span>
   );
