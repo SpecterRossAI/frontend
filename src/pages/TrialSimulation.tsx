@@ -45,6 +45,44 @@ async function clearConversationOnServer(base: string, caseId: string): Promise<
   });
 }
 
+function aggregateDefencePlaintiff(messages: MessageEntry[]): { defence: string; plaintiff: string } {
+  const defence = messages
+    .filter((m) => (m.role || "").toLowerCase() === "user")
+    .map((m) => m.text.trim())
+    .filter(Boolean)
+    .join(" ");
+  const plaintiff = messages
+    .filter((m) => (m.role || "").toLowerCase() !== "user")
+    .map((m) => m.text.trim())
+    .filter(Boolean)
+    .join(" ");
+  return { defence, plaintiff };
+}
+
+async function uploadConversationToBackend(
+  base: string,
+  caseId: string,
+  threadId: string,
+  defence: string,
+  plaintiff: string
+): Promise<void> {
+  if (!defence.trim() && !plaintiff.trim()) return;
+  const res = await fetch(`${base}/conversation-upload`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      case_id: caseId,
+      thread_id: threadId,
+      Defence: defence,
+      Plaintiff: plaintiff,
+    }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(typeof err?.detail === "string" ? err.detail : "Failed to upload conversation");
+  }
+}
+
 const mockFiles: UploadedFile[] = [
   { name: "Complaint.pdf", size: 245000, type: "application/pdf", path: "Complaint.pdf" },
   { name: "Exhibit_A.pdf", size: 128000, type: "application/pdf", path: "Evidence/Exhibit_A.pdf" },
@@ -136,6 +174,31 @@ const TrialSimulation = () => {
   const lastSentIndexRef = useRef(0);
   const judgementIdRef = useRef(0);
   const lastUserContextRef = useRef<string | undefined>();
+  const threadIdRef = useRef(0);
+  const lastUploadedIndexRef = useRef(0);
+  const judgeOpeningAddedRef = useRef(false);
+
+  // Judge opening: who is present (from case files) + start
+  useEffect(() => {
+    if (judgeOpeningAddedRef.current) return;
+    judgeOpeningAddedRef.current = true;
+    const docList = files.length > 5
+      ? `${files.slice(0, 5).map((f) => f.name).join(", ")} and ${files.length - 5} more`
+      : files.map((f) => f.name).join(", ") || "—";
+    const opening: JudgementEntry = {
+      id: "j-opening",
+      text: `Present: Defense Counsel, Opposing Counsel. Documents before the court: ${docList}. Court is now in session.`,
+      timestamp: Date.now(),
+      stage: "opening",
+    };
+    const start: JudgementEntry = {
+      id: "j-start",
+      text: "You may begin.",
+      timestamp: Date.now() + 100,
+      stage: "start",
+    };
+    setJudgements((prev) => [opening, start, ...prev]);
+  }, [files]);
 
   const { startSession, endSession, status: voiceStatus, isSpeaking } = useConversation({
     onMessage: (msg: MessagePayload) => {
@@ -159,6 +222,7 @@ const TrialSimulation = () => {
             text: rulingText,
             context: lastUserContextRef.current,
             timestamp: Date.now(),
+            stage: "ruling",
           },
         ]);
       }
@@ -194,6 +258,36 @@ const TrialSimulation = () => {
       lastSentIndexRef.current = n;
     }).catch(() => {});
   }, [messages, caseId]);
+
+  // Periodic upload to Python backend for RAG (judgement + inline query) — only when new messages
+  useEffect(() => {
+    if (!API_BASE) return;
+    const interval = setInterval(() => {
+      if (messages.length <= lastUploadedIndexRef.current) return;
+      const { defence, plaintiff } = aggregateDefencePlaintiff(messages);
+      if (!defence.trim() && !plaintiff.trim()) return;
+      const threadId = String(++threadIdRef.current);
+      uploadConversationToBackend(API_BASE, caseId, threadId, defence, plaintiff)
+        .then(() => {
+          lastUploadedIndexRef.current = messages.length;
+        })
+        .catch((e) => console.warn("[Conversation] Upload failed:", e));
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [messages, caseId]);
+
+  const handleGetJudgement = () => {
+    if (API_BASE) {
+      const { defence, plaintiff } = aggregateDefencePlaintiff(messages);
+      if (defence.trim() || plaintiff.trim()) {
+        const threadId = String(++threadIdRef.current);
+        uploadConversationToBackend(API_BASE, caseId, threadId, defence, plaintiff).catch((e) =>
+          console.warn("[Conversation] Pre-judgement upload failed:", e)
+        );
+      }
+    }
+    setJudgementModalOpen(true);
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -246,13 +340,13 @@ const TrialSimulation = () => {
   return (
     <div className="h-screen bg-background flex flex-col overflow-hidden">
       {/* Top bar - dashboard style */}
-      <header className="flex items-center justify-between px-6 py-3 border-b border-border bg-slate-800 shrink-0 z-10">
+      <header className="flex items-center justify-between px-6 py-3 border-b border-slate-700 bg-slate-800 dark:bg-slate-900 shrink-0 z-10">
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
               <Scale className="w-4 h-4 text-primary-foreground" />
             </div>
-            <span className="text-sm font-semibold text-white font-display">SpecterRoss<span className="text-primary-foreground/90">AI</span></span>
+            <span className="text-sm font-semibold text-white font-display">SpecterRoss<span className="text-blue-400">AI</span></span>
           </div>
           <span className="text-xs text-slate-300 font-medium">· Mock Trial in Session</span>
           <div className="hidden sm:flex items-center gap-2 pl-4 border-l border-slate-600">
@@ -370,7 +464,13 @@ const TrialSimulation = () => {
               transition={{ duration: 0.3 }}
               className="border-l border-border overflow-hidden"
             >
-              <StrategyPanel />
+              <StrategyPanel
+              caseId={caseId}
+              messages={messages}
+              onUseSuggestion={(text) => {
+                navigator.clipboard?.writeText(text);
+              }}
+            />
             </motion.div>
           )}
         </AnimatePresence>
@@ -383,7 +483,7 @@ const TrialSimulation = () => {
         onJudgementAdded={(text) =>
           setJudgements((prev) => [
             ...prev,
-            { id: `j-${++judgementIdRef.current}`, text, timestamp: Date.now() },
+            { id: `j-${++judgementIdRef.current}`, text, timestamp: Date.now(), stage: "ruling" },
           ])
         }
       />
