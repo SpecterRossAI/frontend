@@ -1,8 +1,9 @@
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Scale, Mic, Users } from "lucide-react";
+import { Scale, FileDown, Loader2 } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { useConversation, type Callbacks } from "@elevenlabs/react";
+import { useLiveTranscription } from "@/hooks/useLiveTranscription";
 import VideoGrid from "@/components/simulation/VideoGrid";
 import ControlBar from "@/components/simulation/ControlBar";
 import StrategyPanel from "@/components/simulation/StrategyPanel";
@@ -12,6 +13,7 @@ import DocumentViewerPane from "@/components/simulation/DocumentViewerPane";
 import CaseDocumentsDashboard from "@/components/trial/CaseDocumentsDashboard";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import { useNavigate, useLocation } from "react-router-dom";
+import { toast } from "sonner";
 import type { UploadedFile } from "@/types/files";
 import type { JudgementEntry } from "@/types/simulation";
 
@@ -103,8 +105,6 @@ interface SimulationContentProps {
   strategyOpen: boolean;
   setStrategyOpen: (v: boolean) => void;
   messages: MessageEntry[];
-  judgements: JudgementEntry[];
-  setJudgementModalOpen: (v: boolean) => void;
   setObjectionOpen: (v: boolean) => void;
   navigate: ReturnType<typeof useNavigate>;
   isSpeaking: boolean;
@@ -116,22 +116,18 @@ function SimulationContent({
   strategyOpen,
   setStrategyOpen,
   messages,
-  judgements,
-  setJudgementModalOpen,
   setObjectionOpen,
   navigate,
   isSpeaking,
 }: SimulationContentProps) {
   return (
     <div className="h-full flex flex-col min-w-0 bg-muted/30 relative">
-      <div className="absolute inset-0 grid-pattern opacity-20 pointer-events-none" />
+      <div className="absolute inset-0 bg-gradient-to-b from-primary/[0.04] via-transparent to-transparent pointer-events-none" />
       <div className="relative z-10 flex-1 flex flex-col min-h-0">
         <VideoGrid
           captionsOn={captionsOn}
           isAgentSpeaking={isSpeaking}
           agentCaption={messages.filter((m) => m.role !== "user").pop()?.text}
-          judgements={judgements}
-          onAddJudgement={() => setJudgementModalOpen(true)}
         />
       </div>
       <ControlBar
@@ -152,17 +148,16 @@ const TrialSimulation = () => {
   const defaultCaseId = useCaseId();
   const caseId = state.caseId ?? defaultCaseId;
   const files = state.files ?? mockFiles;
-  const [strategyOpen, setStrategyOpen] = useState(false);
+  const [strategyOpen, setStrategyOpen] = useState(true);
   const [objectionOpen, setObjectionOpen] = useState(false);
   const [judgementModalOpen, setJudgementModalOpen] = useState(false);
   const [captionsOn, setCaptionsOn] = useState(false);
-  const [docSidebarOpen, setDocSidebarOpen] = useState(false);
+  const [docSidebarOpen, setDocSidebarOpen] = useState(true);
   const [previewFile, setPreviewFile] = useState<UploadedFile | null>(null);
 
   const handlePreviewFile = (file: UploadedFile | null) => {
     setPreviewFile(file);
     if (file) {
-      setDocSidebarOpen(false);
       setStrategyOpen(false);
     }
   };
@@ -199,6 +194,12 @@ const TrialSimulation = () => {
     };
     setJudgements((prev) => [opening, start, ...prev]);
   }, [files]);
+
+  const { messages: transcriptMessages, isConnected: transcriptLive } = useLiveTranscription({
+    caseId,
+    wsBaseUrl: CONVERSATION_API_BASE || undefined,
+    fallbackMessages: messages,
+  });
 
   const { startSession, endSession, status: voiceStatus, isSpeaking } = useConversation({
     onMessage: (msg: MessagePayload) => {
@@ -276,7 +277,9 @@ const TrialSimulation = () => {
     return () => clearInterval(interval);
   }, [messages, caseId]);
 
-  const handleGetJudgement = () => {
+  const [judgementPdfLoading, setJudgementPdfLoading] = useState(false);
+
+  const handleGetJudgement = async () => {
     if (API_BASE) {
       const { defence, plaintiff } = aggregateDefencePlaintiff(messages);
       if (defence.trim() || plaintiff.trim()) {
@@ -286,7 +289,37 @@ const TrialSimulation = () => {
         );
       }
     }
-    setJudgementModalOpen(true);
+    if (!API_BASE) {
+      toast.error("API not configured. Cannot fetch judgement PDF.");
+      return;
+    }
+    setJudgementPdfLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/cases/${encodeURIComponent(caseId)}/judgement`);
+      if (!res.ok) {
+        toast.error(res.status === 404 ? "Judgement PDF not yet available. The backend must implement GET /api/cases/{case_id}/judgement." : "Failed to fetch judgement PDF.");
+        return;
+      }
+      const blob = await res.blob();
+      const contentType = res.headers.get("content-type") || "";
+      if (!contentType.includes("pdf")) {
+        toast.error("Response is not a PDF.");
+        return;
+      }
+      const url = URL.createObjectURL(blob);
+      window.open(url, "_blank", "noopener");
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `judgement-${caseId}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+    } catch {
+      toast.error("Failed to fetch judgement PDF. Check that the backend implements GET /api/cases/{case_id}/judgement.");
+    } finally {
+      setJudgementPdfLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -338,44 +371,38 @@ const TrialSimulation = () => {
   }, []);
 
   return (
-    <div className="h-screen bg-background flex flex-col overflow-hidden">
-      {/* Top bar - dashboard style */}
-      <header className="flex items-center justify-between px-6 py-3 border-b border-slate-700 bg-slate-800 dark:bg-slate-900 shrink-0 z-10">
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-              <Scale className="w-4 h-4 text-primary-foreground" />
-            </div>
-            <span className="text-sm font-semibold text-white font-display">SpecterRoss<span className="text-blue-400">AI</span></span>
+    <div className="h-screen bg-gradient-to-br from-background via-background to-muted/30 flex flex-col overflow-hidden">
+      {/* Sleek header */}
+      <header className="flex items-center justify-between px-5 py-3 border-b border-border/60 bg-card/80 backdrop-blur-md shrink-0 z-10">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center shadow-sm">
+            <Scale className="w-4 h-4 text-primary-foreground" />
           </div>
-          <span className="text-xs text-slate-300 font-medium">· Mock Trial in Session</span>
-          <div className="hidden sm:flex items-center gap-2 pl-4 border-l border-slate-600">
-            <span className="flex items-center gap-1.5 text-xs text-slate-300">
-              <Users className="w-3.5 h-3.5" />
-              2 participants
-            </span>
-            <span className="flex items-center gap-1.5 text-xs text-slate-300">
-              <Mic className="w-3.5 h-3.5" />
-              Voice active
-            </span>
+          <div>
+            <span className="text-sm font-bold text-foreground tracking-tight">SpecterRoss</span>
+            <span className="text-sm font-bold text-primary ml-0.5">AI</span>
+            <span className="text-[10px] text-muted-foreground ml-2 font-medium uppercase tracking-wider">Trial</span>
           </div>
         </div>
         <div className="flex items-center gap-3">
-          {voiceError && (
-            <span className="text-xs text-red-400" title={voiceError}>
-              Voice: {voiceError}
+          <button
+            onClick={handleGetJudgement}
+            disabled={judgementPdfLoading}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 disabled:opacity-60"
+          >
+            {judgementPdfLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileDown className="w-3.5 h-3.5" />}
+            Download Judgement PDF
+          </button>
+          {voiceError ? (
+            <span className="text-xs text-destructive font-medium" title={voiceError}>Voice error</span>
+          ) : (
+            <span className="flex items-center gap-2 text-xs">
+              <span className={`w-2 h-2 rounded-full ${voiceStatus === "connected" ? "bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.5)]" : "bg-muted-foreground/60"}`} />
+              <span className="text-muted-foreground font-medium">
+                {voiceStep === "connected" ? "Live" : voiceStep === "idle" ? voiceStatus : "Connecting…"}
+              </span>
             </span>
           )}
-          {!voiceError && (
-            <span className="flex items-center gap-1.5 text-xs text-slate-300">
-              <span className={`w-2 h-2 rounded-full ${voiceStatus === "connected" ? "bg-success animate-pulse" : "bg-slate-500"}`} />
-              {voiceStep === "fetching" && "Connecting…"}
-              {voiceStep === "connecting" && "Connecting…"}
-              {voiceStep === "connected" && "Live"}
-              {voiceStep === "idle" && voiceStatus}
-            </span>
-          )}
-          <span className="text-xs font-medium text-slate-300 font-mono tabular-nums px-2 py-1 rounded-md bg-slate-700/50">00:12:34</span>
           <ThemeToggle variant="header" />
           <LatencyBadge />
         </div>
@@ -429,8 +456,6 @@ const TrialSimulation = () => {
                 strategyOpen={strategyOpen}
                 setStrategyOpen={setStrategyOpen}
                 messages={messages}
-                judgements={judgements}
-                setJudgementModalOpen={setJudgementModalOpen}
                 setObjectionOpen={setObjectionOpen}
                 navigate={navigate}
                 isSpeaking={isSpeaking}
@@ -445,8 +470,6 @@ const TrialSimulation = () => {
               strategyOpen={strategyOpen}
               setStrategyOpen={setStrategyOpen}
               messages={messages}
-              judgements={judgements}
-              setJudgementModalOpen={setJudgementModalOpen}
               setObjectionOpen={setObjectionOpen}
               navigate={navigate}
               isSpeaking={isSpeaking}
@@ -459,14 +482,15 @@ const TrialSimulation = () => {
           {strategyOpen && (
             <motion.div
               initial={{ width: 0, opacity: 0 }}
-              animate={{ width: 380, opacity: 1 }}
+              animate={{ width: 340, opacity: 1 }}
               exit={{ width: 0, opacity: 0 }}
               transition={{ duration: 0.3 }}
-              className="border-l border-border overflow-hidden"
+              className="overflow-hidden"
             >
               <StrategyPanel
               caseId={caseId}
-              messages={messages}
+              messages={transcriptMessages}
+              isTranscriptLive={transcriptLive}
               onUseSuggestion={(text) => {
                 navigator.clipboard?.writeText(text);
               }}
@@ -493,10 +517,10 @@ const TrialSimulation = () => {
 
 const LatencyBadge = () => {
   const latency = 45;
-  const color = latency < 100 ? "bg-success" : latency < 250 ? "bg-amber-500" : "bg-red-500";
+  const color = latency < 100 ? "bg-success" : latency < 250 ? "bg-amber-500" : "bg-destructive";
   return (
-    <span className="flex items-center gap-1.5 text-xs font-medium text-slate-300 px-2.5 py-1 rounded-lg bg-slate-700/50 border border-slate-600 tabular-nums">
-      <span className={`w-1.5 h-1.5 rounded-full ${color} animate-pulse`} />
+    <span className="flex items-center gap-1 text-xs text-muted-foreground px-2 py-0.5 rounded-md bg-muted/50 tabular-nums">
+      <span className={`w-1 h-1 rounded-full ${color}`} />
       {latency}ms
     </span>
   );

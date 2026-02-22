@@ -21,6 +21,10 @@ Each simulation session has a unique `case_id` (UUID from the frontend). All con
 
 When using the **Python backend (Databricks)** for documents, the frontend uploads PDFs via `POST /api/cases/{case_id}/pdf` and previews via `GET /api/cases/{case_id}/files/{filename}`. Add the GET endpoint to your FastAPI app using the snippet in `server/PYTHON_GET_FILE_ENDPOINT.py`.
 
+## Judgement PDF
+
+The "Get Judgement" button fetches a PDF via `GET /api/cases/{case_id}/judgement`. The Python backend should implement this endpoint to return a PDF (e.g. generated from case data and rulings). If the endpoint returns 404, the frontend falls back to the manual judgement modal.
+
 This Node server still provides optional local file upload/preview for development:
 
 | Method | Path | Description |

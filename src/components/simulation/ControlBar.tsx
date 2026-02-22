@@ -14,24 +14,24 @@ const ControlBar = ({ onToggleStrategy, onObjection, onCaptions, captionsOn, onE
   const [videoOff, setVideoOff] = useState(false);
 
   return (
-    <div className="px-4 py-4">
-      <div className="surface-card px-6 py-3.5 flex items-center justify-between mx-auto max-w-3xl rounded-2xl border-0 shadow-sm">
-        <div className="flex items-center gap-2">
+    <div className="px-4 py-4 flex justify-center">
+      <div className="bg-card/95 backdrop-blur-md px-5 py-2.5 flex items-center justify-between gap-4 mx-auto max-w-xl rounded-full border border-border/80 shadow-lg shadow-black/5">
+        <div className="flex items-center gap-1">
           <ControlButton
-            icon={muted ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+            icon={muted ? <MicOff className="w-3.5 h-3.5" /> : <Mic className="w-3.5 h-3.5" />}
             onClick={() => setMuted(!muted)}
             active={!muted}
             label="Mic"
           />
           <ControlButton
-            icon={videoOff ? <VideoOff className="w-4 h-4" /> : <Video className="w-4 h-4" />}
+            icon={videoOff ? <VideoOff className="w-3.5 h-3.5" /> : <Video className="w-3.5 h-3.5" />}
             onClick={() => setVideoOff(!videoOff)}
             active={!videoOff}
             label="Camera"
           />
-          <ControlButton icon={<Monitor className="w-4 h-4" />} label="Share" />
+          <ControlButton icon={<Monitor className="w-3.5 h-3.5" />} label="Share" />
           <ControlButton
-            icon={<Subtitles className="w-4 h-4" />}
+            icon={<Subtitles className="w-3.5 h-3.5" />}
             onClick={onCaptions}
             active={captionsOn}
             label="Captions"
@@ -41,26 +41,26 @@ const ControlBar = ({ onToggleStrategy, onObjection, onCaptions, captionsOn, onE
         <div className="flex items-center gap-2">
           <button
             onClick={onObjection}
-            className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-destructive/5 text-destructive text-xs font-semibold hover:bg-destructive/10 transition-all border border-destructive/20"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-destructive/10 text-destructive text-xs font-semibold hover:bg-destructive/15 border border-destructive/20"
           >
-            <AlertTriangle className="w-3.5 h-3.5" />
+            <AlertTriangle className="w-3 h-3" />
             Objection
           </button>
           <ControlButton
-            icon={<BrainCircuit className="w-4 h-4" />}
+            icon={<BrainCircuit className="w-3.5 h-3.5" />}
             onClick={onToggleStrategy}
             label="AI Panel"
             accent
           />
         </div>
 
-        <div className="flex items-center gap-2">
-          <ControlButton icon={<Settings className="w-4 h-4" />} label="Settings" />
+        <div className="flex items-center gap-1">
+          <ControlButton icon={<Settings className="w-3.5 h-3.5" />} label="Settings" />
           <button
             onClick={onEnd}
-            className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-destructive text-destructive-foreground text-xs font-semibold hover:bg-destructive/90 transition-all"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-destructive text-destructive-foreground text-xs font-semibold hover:bg-destructive/90"
           >
-            <PhoneOff className="w-3.5 h-3.5" />
+            <PhoneOff className="w-3 h-3" />
             End
           </button>
         </div>
@@ -85,7 +85,7 @@ const ControlButton = ({
   <button
     onClick={onClick}
     title={label}
-    className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${
+    className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${
       accent
         ? "bg-primary/5 text-primary hover:bg-primary/10 border border-primary/10"
         : active === false

@@ -4,6 +4,7 @@
  * - Frontend POSTs new messages with case_id; we append to defense (user) or prosecutor (agent) buffers.
  * - Backend polls GET /api/conversation/updates?case_id=X every X seconds. Response:
  *   { case_id, thread_id, defense, prosecutor } (all user/agent text since last poll, then buffers are cleared).
+ * - WebSocket /ws/transcription?case_id=X streams live transcript updates to connected clients.
  * - File uploads: POST /api/files/upload stores files on disk under uploads/<caseId>/; GET /api/files/:caseId/:storedName serves them for preview.
  */
 
@@ -12,6 +13,8 @@ import cors from "cors";
 import path from "path";
 import fs from "fs";
 import { fileURLToPath } from "url";
+import { createServer } from "http";
+import { WebSocketServer } from "ws";
 import multer from "multer";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -128,10 +131,12 @@ app.post("/api/conversation", (req, res) => {
   if (!valid) {
     return res.status(400).json({ error: "Each message must have role and text" });
   }
+  const transcriptMessages = [];
   for (const m of messages) {
     const text = String(m.text).trim();
     if (!text) continue;
     const role = (m.role || "").toLowerCase();
+    transcriptMessages.push({ role: role === "user" ? "user" : "agent", text });
     if (role === "user") {
       c.defenseBuffer.push(text);
     } else {
@@ -141,6 +146,9 @@ app.post("/api/conversation", (req, res) => {
   }
   const Defence = c.defenseBuffer.join(" ");
   const Plaintiff = c.prosecutorBuffer.join(" ");
+  if (transcriptMessages.length > 0) {
+    broadcastToCase(caseId, { type: "transcript", messages: transcriptMessages });
+  }
   res.json({
     ok: true,
     Defence,
@@ -180,9 +188,22 @@ app.post("/api/conversation/clear", (req, res) => {
   if (caseId && typeof caseId === "string") {
     activeCaseId = caseId;
     cases.set(caseId, { defenseBuffer: [], prosecutorBuffer: [], threadId: 0 });
+    broadcastToCase(caseId, { type: "clear" });
   }
   res.json({ ok: true });
 });
+
+/** WebSocket: clients subscribed by case_id. Map<caseId, Set<WebSocket>> */
+const wsClientsByCase = new Map();
+
+function broadcastToCase(caseId, payload) {
+  const clients = wsClientsByCase.get(caseId);
+  if (!clients) return;
+  const msg = JSON.stringify(payload);
+  for (const ws of clients) {
+    if (ws.readyState === 1) ws.send(msg);
+  }
+}
 
 // Prevent silent exit from uncaught errors (so we see why the process might close)
 process.on("uncaughtException", (err) => {
@@ -194,8 +215,42 @@ process.on("unhandledRejection", (reason, promise) => {
   process.exitCode = 1;
 });
 
-const server = app.listen(PORT, () => {
-  console.log(`Conversation API listening on http://localhost:${PORT}`);
+const httpServer = createServer(app);
+
+const wss = new WebSocketServer({ noServer: true });
+
+httpServer.on("upgrade", (request, socket, head) => {
+  const url = new URL(request.url || "", `http://${request.headers.host}`);
+  if (url.pathname === "/ws/transcription") {
+    wss.handleUpgrade(request, socket, head, (ws) => {
+      wss.emit("connection", ws, request, url);
+    });
+  } else {
+    socket.destroy();
+  }
+});
+
+wss.on("connection", (ws, request) => {
+  const url = new URL(request.url || "", `http://${request.headers.host}`);
+  const caseId = url.searchParams.get("case_id");
+  if (!caseId || !isValidCaseId(caseId)) {
+    ws.close(1008, "Invalid or missing case_id");
+    return;
+  }
+  let clients = wsClientsByCase.get(caseId);
+  if (!clients) {
+    clients = new Set();
+    wsClientsByCase.set(caseId, clients);
+  }
+  clients.add(ws);
+  ws.on("close", () => {
+    clients.delete(ws);
+    if (clients.size === 0) wsClientsByCase.delete(caseId);
+  });
+});
+
+const server = httpServer.listen(PORT, () => {
+  console.log(`Conversation API listening on http://localhost:${PORT} (WebSocket: ws://localhost:${PORT}/ws/transcription)`);
 });
 
 server.on("error", (err) => {

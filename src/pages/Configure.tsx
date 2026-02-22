@@ -42,6 +42,7 @@ const Configure = () => {
     setConfirmedFiles(files);
     setIsProcessing(false);
     setProcessed(true);
+    setShowFileExplorer(true); // show preview after upload
   };
 
   const handleAddMoreFiles = (newFiles: UploadedFile[]) => {
@@ -51,6 +52,7 @@ const Configure = () => {
     setConfirmedFiles(merged);
     setIsProcessing(false);
     setProcessed(true);
+    setShowFileExplorer(true); // show preview after adding more
   };
 
   const displayFiles = confirmedFiles.length > 0 ? confirmedFiles : uploadedFiles;
