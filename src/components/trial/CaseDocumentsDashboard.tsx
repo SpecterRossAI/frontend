@@ -19,6 +19,7 @@ import type { UploadedFile } from "@/types/files";
 
 interface CaseDocumentsDashboardProps {
   files: UploadedFile[];
+  caseId?: string;
   open: boolean;
   onToggle: () => void;
   onAddMore?: () => void;
@@ -140,6 +141,7 @@ const TreeItem = ({
 
 const CaseDocumentsDashboard = ({
   files,
+  caseId,
   open,
   onToggle,
   onAddMore,
