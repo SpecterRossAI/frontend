@@ -14,8 +14,8 @@ const ControlBar = ({ onToggleStrategy, onObjection, onCaptions, captionsOn, onE
   const [videoOff, setVideoOff] = useState(false);
 
   return (
-    <div className="px-4 py-3">
-      <div className="surface-card px-6 py-3 flex items-center justify-between mx-auto max-w-3xl">
+    <div className="px-4 py-4">
+      <div className="surface-card px-6 py-3.5 flex items-center justify-between mx-auto max-w-3xl rounded-2xl border-0 shadow-sm">
         <div className="flex items-center gap-2">
           <ControlButton
             icon={muted ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
@@ -41,7 +41,7 @@ const ControlBar = ({ onToggleStrategy, onObjection, onCaptions, captionsOn, onE
         <div className="flex items-center gap-2">
           <button
             onClick={onObjection}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-destructive/5 text-destructive text-xs font-semibold hover:bg-destructive/10 transition-colors border border-destructive/15"
+            className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-destructive/5 text-destructive text-xs font-semibold hover:bg-destructive/10 transition-all border border-destructive/20"
           >
             <AlertTriangle className="w-3.5 h-3.5" />
             Objection
@@ -58,7 +58,7 @@ const ControlBar = ({ onToggleStrategy, onObjection, onCaptions, captionsOn, onE
           <ControlButton icon={<Settings className="w-4 h-4" />} label="Settings" />
           <button
             onClick={onEnd}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-destructive text-destructive-foreground text-xs font-semibold hover:bg-destructive/90 transition-colors"
+            className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-destructive text-destructive-foreground text-xs font-semibold hover:bg-destructive/90 transition-all"
           >
             <PhoneOff className="w-3.5 h-3.5" />
             End
@@ -85,7 +85,7 @@ const ControlButton = ({
   <button
     onClick={onClick}
     title={label}
-    className={`w-10 h-10 rounded-lg flex items-center justify-center transition-colors ${
+    className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${
       accent
         ? "bg-primary/5 text-primary hover:bg-primary/10 border border-primary/10"
         : active === false
