@@ -8,7 +8,9 @@ import ControlBar from "@/components/simulation/ControlBar";
 import StrategyPanel from "@/components/simulation/StrategyPanel";
 import ObjectionModal from "@/components/simulation/ObjectionModal";
 import JudgementModal from "@/components/simulation/JudgementModal";
+import DocumentViewerPane from "@/components/simulation/DocumentViewerPane";
 import CaseDocumentsDashboard from "@/components/trial/CaseDocumentsDashboard";
+import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import { useNavigate, useLocation } from "react-router-dom";
 import type { UploadedFile } from "@/types/files";
 import type { JudgementEntry } from "@/types/simulation";
@@ -57,6 +59,54 @@ function useCaseId(): string {
   return caseId;
 }
 
+interface SimulationContentProps {
+  captionsOn: boolean;
+  setCaptionsOn: (v: boolean) => void;
+  strategyOpen: boolean;
+  setStrategyOpen: (v: boolean) => void;
+  messages: MessageEntry[];
+  judgements: JudgementEntry[];
+  setJudgementModalOpen: (v: boolean) => void;
+  setObjectionOpen: (v: boolean) => void;
+  navigate: ReturnType<typeof useNavigate>;
+  isSpeaking: boolean;
+}
+
+function SimulationContent({
+  captionsOn,
+  setCaptionsOn,
+  strategyOpen,
+  setStrategyOpen,
+  messages,
+  judgements,
+  setJudgementModalOpen,
+  setObjectionOpen,
+  navigate,
+  isSpeaking,
+}: SimulationContentProps) {
+  return (
+    <div className="h-full flex flex-col min-w-0 bg-muted/30 relative">
+      <div className="absolute inset-0 grid-pattern opacity-20 pointer-events-none" />
+      <div className="relative z-10 flex-1 flex flex-col min-h-0">
+        <VideoGrid
+          captionsOn={captionsOn}
+          isAgentSpeaking={isSpeaking}
+          agentCaption={messages.filter((m) => m.role !== "user").pop()?.text}
+          judgements={judgements}
+          onAddJudgement={() => setJudgementModalOpen(true)}
+        />
+      </div>
+      <ControlBar
+        onToggleStrategy={() => setStrategyOpen(!strategyOpen)}
+        onObjection={() => setObjectionOpen(true)}
+        onCaptions={() => setCaptionsOn(!captionsOn)}
+        captionsOn={captionsOn}
+        onEnd={() => navigate("/")}
+      />
+    </div>
+  );
+}
+
 const TrialSimulation = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -64,11 +114,20 @@ const TrialSimulation = () => {
   const defaultCaseId = useCaseId();
   const caseId = state.caseId ?? defaultCaseId;
   const files = state.files ?? mockFiles;
-  const [strategyOpen, setStrategyOpen] = useState(true);
+  const [strategyOpen, setStrategyOpen] = useState(false);
   const [objectionOpen, setObjectionOpen] = useState(false);
   const [judgementModalOpen, setJudgementModalOpen] = useState(false);
   const [captionsOn, setCaptionsOn] = useState(false);
-  const [docSidebarOpen, setDocSidebarOpen] = useState(true);
+  const [docSidebarOpen, setDocSidebarOpen] = useState(false);
+  const [previewFile, setPreviewFile] = useState<UploadedFile | null>(null);
+
+  const handlePreviewFile = (file: UploadedFile | null) => {
+    setPreviewFile(file);
+    if (file) {
+      setDocSidebarOpen(false);
+      setStrategyOpen(false);
+    }
+  };
   const [voiceError, setVoiceError] = useState<string | null>(null);
   const [voiceStep, setVoiceStep] = useState<"idle" | "fetching" | "connecting" | "connected" | "error">("idle");
   const [signedUrlReceived, setSignedUrlReceived] = useState(false);
@@ -239,6 +298,9 @@ const TrialSimulation = () => {
               open={docSidebarOpen}
               onToggle={() => setDocSidebarOpen(!docSidebarOpen)}
               isProcessed
+              previewMode="split"
+              previewFile={previewFile}
+              onPreviewFile={handlePreviewFile}
             />
           )}
         </AnimatePresence>
@@ -249,29 +311,54 @@ const TrialSimulation = () => {
             open={false}
             onToggle={() => setDocSidebarOpen(true)}
             isProcessed
+            previewMode="split"
+            previewFile={previewFile}
+            onPreviewFile={handlePreviewFile}
           />
         )}
 
-        {/* Center: video + controls - full dashboard layout */}
-        <div className="flex-1 flex flex-col min-w-0 bg-muted/30 relative">
-          <div className="absolute inset-0 grid-pattern opacity-20 pointer-events-none" />
-          <div className="relative z-10 flex-1 flex flex-col min-h-0">
-          <VideoGrid
-            captionsOn={captionsOn}
-            isAgentSpeaking={isSpeaking}
-            agentCaption={messages.filter((m) => m.role !== "user").pop()?.text}
-            judgements={judgements}
-            onAddJudgement={() => setJudgementModalOpen(true)}
-          />
+        {/* Document viewer (left, only when a file is selected) + Simulation */}
+        {previewFile ? (
+          <ResizablePanelGroup direction="horizontal" className="flex-1 min-w-0">
+            <ResizablePanel defaultSize={50} minSize={28} maxSize={70} className="min-w-0">
+              <DocumentViewerPane
+                file={previewFile}
+                caseId={caseId}
+                onClose={() => setPreviewFile(null)}
+              />
+            </ResizablePanel>
+            <ResizableHandle withHandle className="bg-border hover:bg-muted-foreground/20 data-[resize-handle-active]:bg-primary/30 transition-colors" />
+            <ResizablePanel defaultSize={50} minSize={30} className="min-w-0">
+              <SimulationContent
+                captionsOn={captionsOn}
+                setCaptionsOn={setCaptionsOn}
+                strategyOpen={strategyOpen}
+                setStrategyOpen={setStrategyOpen}
+                messages={messages}
+                judgements={judgements}
+                setJudgementModalOpen={setJudgementModalOpen}
+                setObjectionOpen={setObjectionOpen}
+                navigate={navigate}
+                isSpeaking={isSpeaking}
+              />
+            </ResizablePanel>
+          </ResizablePanelGroup>
+        ) : (
+          <div className="flex-1 min-w-0">
+            <SimulationContent
+              captionsOn={captionsOn}
+              setCaptionsOn={setCaptionsOn}
+              strategyOpen={strategyOpen}
+              setStrategyOpen={setStrategyOpen}
+              messages={messages}
+              judgements={judgements}
+              setJudgementModalOpen={setJudgementModalOpen}
+              setObjectionOpen={setObjectionOpen}
+              navigate={navigate}
+              isSpeaking={isSpeaking}
+            />
           </div>
-          <ControlBar
-            onToggleStrategy={() => setStrategyOpen(!strategyOpen)}
-            onObjection={() => setObjectionOpen(true)}
-            onCaptions={() => setCaptionsOn(!captionsOn)}
-            captionsOn={captionsOn}
-            onEnd={() => navigate("/")}
-          />
-        </div>
+        )}
 
         {/* Strategy panel */}
         <AnimatePresence>

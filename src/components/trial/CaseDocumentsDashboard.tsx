@@ -26,6 +26,12 @@ interface CaseDocumentsDashboardProps {
   onToggle: () => void;
   onAddMore?: () => void;
   isProcessed?: boolean;
+  /** When "split", file selection is reported to parent and no modal is shown (e.g. for simulation split-screen). */
+  previewMode?: "modal" | "split";
+  /** Controlled selected file when previewMode === "split"; used for tree highlight. */
+  previewFile?: UploadedFile | null;
+  /** Called when user selects a file (split mode: open in side pane; modal mode still opens modal). */
+  onPreviewFile?: (file: UploadedFile | null) => void;
 }
 
 interface TreeNode {
@@ -148,9 +154,14 @@ const CaseDocumentsDashboard = ({
   onToggle,
   onAddMore,
   isProcessed = true,
+  previewMode = "modal",
+  previewFile,
+  onPreviewFile,
 }: CaseDocumentsDashboardProps) => {
-  const [selectedFile, setSelectedFile] = useState<UploadedFile | null>(null);
+  const [internalSelected, setInternalSelected] = useState<UploadedFile | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const isSplit = previewMode === "split";
+  const selectedFile = isSplit ? (previewFile ?? null) : (internalSelected ?? null);
   const tree = buildTree(files);
   const totalSize = files.reduce((a, f) => a + f.size, 0);
   const counts = getDocTypeCounts(files);
@@ -162,7 +173,11 @@ const CaseDocumentsDashboard = ({
   const isImage = selectedFile?.type?.startsWith("image/");
 
   const handleSelect = (f: UploadedFile) => {
-    setSelectedFile(f);
+    if (isSplit) {
+      onPreviewFile?.(f);
+      return;
+    }
+    setInternalSelected(f);
     setPreviewOpen(true);
   };
 
@@ -286,9 +301,9 @@ const CaseDocumentsDashboard = ({
         </div>
       </motion.aside>
 
-      {/* File Preview Overlay */}
+      {/* File Preview Overlay (only in modal mode) */}
       <AnimatePresence>
-        {previewOpen && selectedFile && (
+        {!isSplit && previewOpen && selectedFile && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
