@@ -7,7 +7,7 @@ import ControlBar from "@/components/simulation/ControlBar";
 import StrategyPanel from "@/components/simulation/StrategyPanel";
 import ObjectionModal from "@/components/simulation/ObjectionModal";
 import DocumentSidebar from "@/components/trial/DocumentSidebar";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import type { UploadedFile } from "@/types/files";
 
 const API_BASE = import.meta.env.VITE_API_URL || "";
@@ -18,6 +18,7 @@ type MessageEntry = { role: string; text: string };
 
 async function pushNewMessages(
   base: string,
+  caseId: string,
   messages: MessageEntry[],
   fromIndex: number
 ): Promise<void> {
@@ -26,16 +27,19 @@ async function pushNewMessages(
   const res = await fetch(`${base}/api/conversation`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ messages: slice }),
+    body: JSON.stringify({ case_id: caseId, messages: slice }),
   });
   if (!res.ok) throw new Error("Failed to push conversation");
 }
 
-async function clearConversationOnServer(base: string): Promise<void> {
-  await fetch(`${base}/api/conversation/clear`, { method: "POST" });
+async function clearConversationOnServer(base: string, caseId: string): Promise<void> {
+  await fetch(`${base}/api/conversation/clear`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ case_id: caseId }),
+  });
 }
 
-// Mock files for simulation (in a real app, these come from route state or context)
 const mockFiles: UploadedFile[] = [
   { name: "Complaint.pdf", size: 245000, type: "application/pdf", path: "Complaint.pdf" },
   { name: "Exhibit_A.pdf", size: 128000, type: "application/pdf", path: "Evidence/Exhibit_A.pdf" },
@@ -44,8 +48,18 @@ const mockFiles: UploadedFile[] = [
   { name: "Motion_to_Dismiss.pdf", size: 189000, type: "application/pdf", path: "Motion_to_Dismiss.pdf" },
 ];
 
+/** Generate a stable unique case ID for this simulation session (all documents and conversation are linked to it). */
+function useCaseId(): string {
+  const [caseId] = useState(() => crypto.randomUUID());
+  return caseId;
+}
+
 const TrialSimulation = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const caseId = useCaseId();
+  /** Documents for this case: from Configure (route state) or mock when opened without going through Configure. */
+  const files = (location.state as { files?: UploadedFile[] } | null)?.files ?? mockFiles;
   const [strategyOpen, setStrategyOpen] = useState(true);
   const [objectionOpen, setObjectionOpen] = useState(false);
   const [captionsOn, setCaptionsOn] = useState(false);
@@ -84,10 +98,10 @@ const TrialSimulation = () => {
     const n = messages.length;
     const last = lastSentIndexRef.current;
     if (n <= last) return;
-    pushNewMessages(CONVERSATION_API_BASE, messages, last).then(() => {
+    pushNewMessages(CONVERSATION_API_BASE, caseId, messages, last).then(() => {
       lastSentIndexRef.current = n;
     }).catch(() => {});
-  }, [messages]);
+  }, [messages, caseId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -96,7 +110,7 @@ const TrialSimulation = () => {
       setVoiceStep("fetching");
       console.log("[Voice] Requesting signed URL:", url);
       try {
-        await clearConversationOnServer(CONVERSATION_API_BASE);
+        await clearConversationOnServer(CONVERSATION_API_BASE, caseId);
       } catch {
         // ignore
       }
@@ -174,7 +188,7 @@ const TrialSimulation = () => {
         <AnimatePresence>
           {docSidebarOpen && (
             <DocumentSidebar
-              files={mockFiles}
+              files={files}
               open={docSidebarOpen}
               onToggle={() => setDocSidebarOpen(!docSidebarOpen)}
             />
@@ -182,7 +196,7 @@ const TrialSimulation = () => {
         </AnimatePresence>
         {!docSidebarOpen && (
           <DocumentSidebar
-            files={mockFiles}
+            files={files}
             open={false}
             onToggle={() => setDocSidebarOpen(true)}
           />
