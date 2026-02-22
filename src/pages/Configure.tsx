@@ -24,6 +24,7 @@ const judges = [
 
 const Configure = () => {
   const navigate = useNavigate();
+  const [caseId] = useState(() => Math.floor(100000 + Math.random() * 900000).toString());
   const [trialType, setTrialType] = useState("");
   const [judge, setJudge] = useState("ai-default");
   const [trialDropdownOpen, setTrialDropdownOpen] = useState(false);
@@ -37,12 +38,9 @@ const Configure = () => {
 
   const handleFilesUploaded = (files: UploadedFile[]) => {
     setUploadedFiles(files);
-    setIsProcessing(true);
-    setTimeout(() => {
-      setIsProcessing(false);
-      setProcessed(true);
-      setShowFileExplorer(true);
-    }, 2000);
+    setIsProcessing(false);
+    setProcessed(true);
+    setShowFileExplorer(true);
   };
 
   const handleConfirmSelection = (files: UploadedFile[]) => {
@@ -83,6 +81,7 @@ const Configure = () => {
           {sidebarOpen && confirmedFiles.length > 0 && (
             <DocumentSidebar
               files={confirmedFiles}
+              caseId={caseId}
               open={sidebarOpen}
               onToggle={() => setSidebarOpen(!sidebarOpen)}
             />
@@ -93,6 +92,7 @@ const Configure = () => {
         {!sidebarOpen && confirmedFiles.length > 0 && (
           <DocumentSidebar
             files={confirmedFiles}
+            caseId={caseId}
             open={false}
             onToggle={() => setSidebarOpen(true)}
           />
@@ -217,7 +217,10 @@ const Configure = () => {
                   Upload Case Documents
                 </label>
                 <FileUploadZone
+                  caseId={caseId}
                   onFilesUploaded={handleFilesUploaded}
+                  onUploadStart={() => setIsProcessing(true)}
+                  onUploadError={() => setIsProcessing(false)}
                   isProcessing={isProcessing}
                   processed={processed}
                   fileCount={confirmedFiles.length}
@@ -230,7 +233,7 @@ const Configure = () => {
               <motion.button
                 whileHover={canStart ? { scale: 1.005 } : {}}
                 whileTap={canStart ? { scale: 0.995 } : {}}
-                onClick={() => canStart && navigate("/simulation", { state: { files: confirmedFiles } })}
+                onClick={() => canStart && navigate("/simulation", { state: { files: confirmedFiles, caseId } })}
                 disabled={!canStart}
                 className={`w-full py-4 rounded-lg text-sm font-semibold transition-all ${
                   canStart
@@ -250,6 +253,7 @@ const Configure = () => {
         open={showFileExplorer}
         onClose={() => setShowFileExplorer(false)}
         files={uploadedFiles}
+        caseId={caseId}
         selectionMode
         onConfirmSelection={handleConfirmSelection}
       />

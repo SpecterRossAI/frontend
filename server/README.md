@@ -1,6 +1,6 @@
 # Conversation API (in-memory)
 
-Per-case conversation buffers so the backend can poll every X seconds and get defense (user) / prosecutor (agent) text since last poll.
+Per-case conversation buffers so the backend can poll every X seconds (e.g. 10s) and get Defence (user) / Plaintiff (agent) concatenated arguments since last poll.
 
 - **Run:** `npm run conversation-api` (listens on port 3001, or `CONVERSATION_API_PORT`).
 - **Vite proxy:** In dev, the frontend uses `/api` which is proxied to this server.
@@ -13,8 +13,19 @@ Each simulation session has a unique `case_id` (UUID from the frontend). All con
 
 | Method | Path | Description |
 |--------|------|-------------|
-| POST | `/api/conversation` | Append messages for a case. Body: `{ "case_id": "<uuid>", "messages": [{ "role": "user" \| "agent", "text": "..." }] }`. User → defense buffer, agent → prosecutor buffer. |
-| GET | `/api/conversation/updates?case_id=<uuid>` | **Backend polls this every X seconds.** Returns `{ "case_id", "thread_id", "defense", "prosecutor" }`. Defense = all user text since last poll (concatenated). Prosecutor = all agent text since last poll. Buffers are then cleared and `thread_id` incremented. |
+| POST | `/api/conversation` | Append messages for a case. Body: `{ "case_id": "<id>", "messages": [{ "role": "user" \| "agent", "text": "..." }] }`. Response: `{ "ok": true, "Defence": "concatenated user args", "Plaintiff": "concatenated agent args" }`. |
+| GET | `/api/conversation/updates` | **Backend polls this every X seconds (e.g. 10s). No parameters.** Case is set by the frontend when it sends POST /api/conversation or POST /api/conversation/clear. Returns `{ "case_id", "thread_id", "Defence", "Plaintiff" }`. Buffers are then cleared and `thread_id` incremented. |
 | POST | `/api/conversation/clear` | Clear one case. Body: `{ "case_id": "<uuid>" }`. |
 
-Storage is in-memory only (no DB or file). For production you may want to move this behind your main backend or add persistence.
+## File upload and preview
+
+When using the **Python backend (Databricks)** for documents, the frontend uploads PDFs via `POST /api/cases/{case_id}/pdf` and previews via `GET /api/cases/{case_id}/files/{filename}`. Add the GET endpoint to your FastAPI app using the snippet in `server/PYTHON_GET_FILE_ENDPOINT.py`.
+
+This Node server still provides optional local file upload/preview for development:
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/api/files/upload` | Upload files for a case (local disk). **Multipart form:** `caseId`, `files`. Responds with `{ "files": [{ "name", "size", "type", "path", "storedName" }] }`. |
+| GET | `/api/files/:caseId/:storedName` | Serve a stored file for preview (local disk). |
+
+Storage is in-memory for conversation only. File storage is on disk under `server/uploads/` when using this Node server for uploads.

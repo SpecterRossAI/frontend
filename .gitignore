@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Uploaded case files (disk storage; replace with Databricks later)
+server/uploads/
