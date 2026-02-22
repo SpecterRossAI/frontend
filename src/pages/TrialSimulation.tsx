@@ -9,6 +9,7 @@ import ControlBar from "@/components/simulation/ControlBar";
 import StrategyPanel from "@/components/simulation/StrategyPanel";
 import ObjectionModal from "@/components/simulation/ObjectionModal";
 import JudgementModal from "@/components/simulation/JudgementModal";
+import JudgementDisplayModal from "@/components/simulation/JudgementDisplayModal";
 import DocumentViewerPane from "@/components/simulation/DocumentViewerPane";
 import CaseDocumentsDashboard from "@/components/trial/CaseDocumentsDashboard";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
@@ -278,6 +279,8 @@ const TrialSimulation = () => {
   }, [messages, caseId]);
 
   const [judgementPdfLoading, setJudgementPdfLoading] = useState(false);
+  const [judgementDisplayOpen, setJudgementDisplayOpen] = useState(false);
+  const [judgementText, setJudgementText] = useState("");
 
   const handleGetJudgement = async () => {
     if (API_BASE) {
@@ -290,14 +293,79 @@ const TrialSimulation = () => {
       }
     }
     if (!API_BASE) {
-      toast.error("API not configured. Cannot fetch judgement PDF.");
+      toast.error("API not configured. Cannot fetch judgement.");
       return;
     }
     setJudgementPdfLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/api/cases/${encodeURIComponent(caseId)}/judgement`);
+      const res = await fetch(
+        `${API_BASE}/api/cases/${encodeURIComponent(caseId)}/judgement`,
+        { method: "POST" }
+      );
       if (!res.ok) {
-        toast.error(res.status === 404 ? "Judgement PDF not yet available. The backend must implement GET /api/cases/{case_id}/judgement." : "Failed to fetch judgement PDF.");
+        toast.error(res.status === 404 ? "Judgement not yet available." : "Failed to fetch judgement.");
+        return;
+      }
+      const contentType = res.headers.get("content-type") || "";
+      if (contentType.includes("pdf")) {
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        window.open(url, "_blank", "noopener");
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `judgement-${caseId}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(url), 5000);
+      } else {
+        const raw = await res.text();
+        let text = "";
+        if (contentType.includes("application/json")) {
+          try {
+            const data = JSON.parse(raw);
+            const nested = data?.judgement;
+            text =
+              (typeof data?.text === "string" && data.text) ??
+              (typeof data?.judgement === "string" && data.judgement) ??
+              (typeof data?.content === "string" && data.content) ??
+              (typeof data?.result === "string" && data.result) ??
+              (typeof data?.output === "string" && data.output) ??
+              (typeof data?.judgement_text === "string" && data.judgement_text) ??
+              (typeof data?.generated_text === "string" && data.generated_text) ??
+              (typeof nested === "object" && typeof nested?.text === "string" && nested.text) ??
+              (typeof data === "string" && data) ??
+              (() => {
+                for (const v of Object.values(data || {})) {
+                  if (typeof v === "string" && v.length > 20) return v;
+                }
+                return raw;
+              })();
+          } catch {
+            text = raw;
+          }
+        } else {
+          text = raw;
+        }
+        setJudgementText((text || "").trim() || "No judgement text returned.");
+        setJudgementDisplayOpen(true);
+      }
+    } catch {
+      toast.error("Failed to fetch judgement.");
+    } finally {
+      setJudgementPdfLoading(false);
+    }
+  };
+
+  const handleDownloadJudgementPdf = async () => {
+    if (!API_BASE) return;
+    try {
+      const res = await fetch(
+        `${API_BASE}/api/cases/${encodeURIComponent(caseId)}/judgement?format=pdf`,
+        { method: "POST" }
+      );
+      if (!res.ok) {
+        toast.error("PDF generation failed. The text judgement is still available above.");
         return;
       }
       const blob = await res.blob();
@@ -315,10 +383,9 @@ const TrialSimulation = () => {
       a.click();
       document.body.removeChild(a);
       setTimeout(() => URL.revokeObjectURL(url), 5000);
+      toast.success("PDF downloaded");
     } catch {
-      toast.error("Failed to fetch judgement PDF. Check that the backend implements GET /api/cases/{case_id}/judgement.");
-    } finally {
-      setJudgementPdfLoading(false);
+      toast.error("PDF download failed. The text judgement is still available above.");
     }
   };
 
@@ -501,6 +568,13 @@ const TrialSimulation = () => {
       </div>
 
       <ObjectionModal open={objectionOpen} onClose={() => setObjectionOpen(false)} />
+      <JudgementDisplayModal
+        open={judgementDisplayOpen}
+        onClose={() => setJudgementDisplayOpen(false)}
+        text={judgementText}
+        caseId={caseId}
+        onDownloadPdf={handleDownloadJudgementPdf}
+      />
       <JudgementModal
         open={judgementModalOpen}
         onClose={() => setJudgementModalOpen(false)}

@@ -46,7 +46,8 @@ export function useLiveTranscription({
   const { readyState } = useWebSocket(wsUrl, {
     onMessage: handleWsMessage,
     reconnect: true,
-    reconnectAttempts: 10,
+    reconnectAttempts: 3,
+    reconnectInterval: 5000,
   });
 
   const isConnected = readyState === "open";

@@ -146,7 +146,7 @@ const StrategyPanel = ({ caseId, messages = [], isTranscriptLive, onUseSuggestio
             </span>
           )}
         </div>
-        <div className="px-4 py-2.5 max-h-28 overflow-y-auto">
+        <div className="px-4 py-2.5 max-h-64 overflow-y-auto">
           {messages.length === 0 ? (
             <p className="text-xs text-muted-foreground italic">Transcript will appear as the trial proceeds.</p>
           ) : (

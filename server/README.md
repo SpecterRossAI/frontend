@@ -3,7 +3,8 @@
 Per-case conversation buffers so the backend can poll every X seconds (e.g. 10s) and get Defence (user) / Plaintiff (agent) concatenated arguments since last poll.
 
 - **Run:** `npm run conversation-api` (listens on port 3001, or `CONVERSATION_API_PORT`).
-- **Vite proxy:** In dev, the frontend uses `/api` which is proxied to this server.
+- **Vite proxy:** In dev, `/api` and `/ws` are proxied to this server (port 3001).
+- **WebSocket:** Live transcript uses `ws://.../ws/transcription?case_id=X`. **You must run the conversation API** (`npm run conversation-api`) for live transcript; otherwise the app falls back to ElevenLabs messages.
 
 ## Case ID
 
@@ -23,7 +24,7 @@ When using the **Python backend (Databricks)** for documents, the frontend uploa
 
 ## Judgement PDF
 
-The "Get Judgement" button fetches a PDF via `GET /api/cases/{case_id}/judgement`. The Python backend should implement this endpoint to return a PDF (e.g. generated from case data and rulings). If the endpoint returns 404, the frontend falls back to the manual judgement modal.
+The "Download Judgement PDF" button calls `POST /api/cases/{case_id}/judgement?format=pdf` to generate and download the judgement. The backend should return a PDF binary. Optional: `?perspective=plaintiff` for plaintiff perspective.
 
 This Node server still provides optional local file upload/preview for development:
 
